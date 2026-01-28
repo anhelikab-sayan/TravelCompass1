@@ -30,3 +30,26 @@ class Route(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.user.username})"
+        
+class RoutePoint(models.Model):
+
+    route = models.ForeignKey(
+        Route,
+        on_delete=models.CASCADE,
+        related_name='points'
+    )
+    place = models.ForeignKey(
+        Place,
+        on_delete=models.CASCADE,
+        related_name='route_points'
+    )
+    order = models.PositiveIntegerField(
+        help_text="Порядок точки в маршруте"
+    )
+
+    class Meta:
+        ordering = ['order']
+        unique_together = ('route', 'order')
+
+    def __str__(self):
+        return f"{self.route.title} - {self.place.name} ({self.order})"
