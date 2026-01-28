@@ -16,3 +16,17 @@ class Place(models.Model):
 
     def __str__(self):
         return self.name
+    
+class Route(models.Model):
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='routes'
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.user.username})"
