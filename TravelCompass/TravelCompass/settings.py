@@ -79,7 +79,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'TravelCompass',
         'USER': 'postgres',
-        'PASSWORD': 'Postgres',
+        'PASSWORD': 'postgres',
         'HOST': 'localhost',
         'PORT': '5432',
         'CONN_MAX_AGE': 600,
@@ -126,3 +126,6 @@ STATIC_URL = 'static/'
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+DG2IS_API_KEY = "74943cc3-fdfa-4a55-bacb-f8252ed3baf3"
+
