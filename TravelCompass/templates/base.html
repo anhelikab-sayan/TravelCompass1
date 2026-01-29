@@ -1,17 +1,31 @@
-<!doctype html>
-<title>TravelCompass</title>
-<link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
-<div class=page>
-  <h1>Flaskr</h1>
-  <!-- <div class=metanav>
-  {% if not session.logged_in %}
-    <a href="{{ url_for('login') }}">log in</a>
-  {% else %}
-    <a href="{{ url_for('logout') }}">log out</a>
-  {% endif %}
-  </div> -->
-  {% for message in get_flashed_messages() %}
-    <div class=flash>{{ message }}</div>
-  {% endfor %}
-  {% block body %}{% endblock %}
-</div>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>TravelCompass</title>
+
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+<header>
+    <h1>TravelCompass</h1>
+
+    {% if user.is_authenticated %}
+        <p>
+            Привет, {{ user.username }} |
+            <a href="{% url 'logout' %}">Выйти</a>
+        </p>
+    {% else %}
+        <a href="{% url 'login' %}">Войти</a>
+        <a href="{% url 'register' %}">Регистрация</a>
+    {% endif %}
+</header>
+
+<hr>
+
+{% block content %}{% endblock %}
+
+</body>
+</html>
