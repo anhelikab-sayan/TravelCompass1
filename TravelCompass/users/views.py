@@ -66,3 +66,27 @@ def register_view(request):
         return redirect('profile')
 
     return render(request, 'users/register.html')
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+
+        if not username or not password:
+            return render(request, 'users/login.html', {
+                'error': 'Введите логин и пароль',
+                'username': username,
+            })
+
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            messages.success(request, f'Добро пожаловать, {username}!')
+            return redirect('profile')
+
+        return render(request, 'users/login.html', {
+            'error': 'Неверный логин или пароль',
+            'username': username,
+        })
+
+    return render(request, 'users/login.html')
