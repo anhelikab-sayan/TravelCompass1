@@ -97,3 +97,8 @@ def profile_view(request):
     return render(request, 'users/profile.html', {
         'routes': routes
     })
+
+def logout_view(request):
+    logout(request)
+    messages.info(request, 'Вы успешно вышли из системы')
+    return redirect('login')
