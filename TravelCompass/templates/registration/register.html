@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block body %}
+<h2>Регистрация</h2>
+
+<form method="post">
+  {% csrf_token %}
+
+  <input name="username" placeholder="Логин" value="{{ username|default:'' }}" required>
+  <input name="email" type="email" placeholder="Email" value="{{ email|default:'' }}" required>
+
+  <input name="password" type="password" placeholder="Пароль" required>
+  <input name="password2" type="password" placeholder="Повторите пароль" required>
+
+  <button type="submit">Создать аккаунт</button>
+</form>
+{% endblock %}
