@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block body %}
+<h2>Профиль</h2>
+
+<p><strong>Пользователь:</strong> {{ request.user.username }}</p>
+<p><strong>Email:</strong> {{ request.user.email }}</p>
+
+<h3>Мои маршруты</h3>
+<ul>
+  {% for route in routes %}
+    <li>{{ route.title }}</li>
+  {% empty %}
+    <li>Маршрутов пока нет</li>
+  {% endfor %}
+</ul>
+{% endblock %}
