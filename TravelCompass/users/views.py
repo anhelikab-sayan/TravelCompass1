@@ -90,3 +90,10 @@ def login_view(request):
         })
 
     return render(request, 'users/login.html')
+
+@login_required
+def profile_view(request):
+    routes = Route.objects.filter(user=request.user)
+    return render(request, 'users/profile.html', {
+        'routes': routes
+    })
