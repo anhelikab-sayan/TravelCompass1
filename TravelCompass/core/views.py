@@ -1,20 +1,27 @@
 import json
-
 from django.shortcuts import render
-from django.utils.safestring import mark_safe
-
-from core.api.d2gis import search_places
+from core.api.d2gis import search_places, POPULAR_CITIES
 
 
-def main_view(request):
-    places = []
-    query = request.GET.get("q")
+def index(request):
+    return render(request, "core/index.html")
 
-    if query:
-        places = search_places(query)
 
-    return render(request, "main.html", {
-        "places": places,
-        "places_json": mark_safe(json.dumps(places)),
+def search(request):
+    query = request.GET.get("q", "")
+    city = request.GET.get("city", "Красноярск")
+    category = request.GET.get("category", "")
+
+    places, city_center = search_places(query, city, category)
+
+    context = {
+        "places_json": json.dumps(places),
         "query": query,
-    })
+        "city": city,
+        "category": category,
+        "cities": POPULAR_CITIES.keys(),
+        "city_lat": city_center["lat"],
+        "city_lon": city_center["lon"],
+    }
+
+    return render(request, "core/search.html", context)

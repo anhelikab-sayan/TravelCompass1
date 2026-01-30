@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Поиск</h2>
+
+<div id="map"></div>
+
+<style>
+#map {
+    width: 100%;
+    height: 400px;
+}
+</style>
+
+<script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full"></script>
+
+<script>
+DG.then(function () {
+    const map = DG.map('map', {
+        center: [56.0153, 92.8932],
+        zoom: 12
+    });
+
+    DG.marker([56.0153, 92.8932])
+        .addTo(map)
+        .bindPopup("Красноярск");
+});
+</script>
+{% endblock %}
+
