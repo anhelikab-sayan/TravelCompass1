@@ -1,7 +1,35 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Поиск</h2>
+<h2>Поиск мест</h2>
+
+<form method="get" style="margin-bottom: 20px;">
+    <input type="text"
+           name="q"
+           placeholder="Кофейня, парк..."
+           value="{{ query }}">
+
+    <select name="city">
+        {% for c in cities %}
+            <option value="{{ c }}" {% if c == city %}selected{% endif %}>
+                {{ c }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <select name="category">
+        <option value="">Любая категория</option>
+        <option value="cafe" {% if category == "cafe" %}selected{% endif %}>Кофейни</option>
+        <option value="park" {% if category == "park" %}selected{% endif %}>Парки</option>
+        <option value="restaurant" {% if category == "restaurant" %}selected{% endif %}>Рестораны</option>
+    </select>
+
+    <button type="submit">Искать</button>
+</form>
+
+{% if query or category %}
+    <p>Найдено мест: {{ places_json|length }}</p>
+{% endif %}
 
 <div id="map"></div>
 
@@ -9,6 +37,8 @@
 #map {
     width: 100%;
     height: 400px;
+    border-radius: 12px;
+    margin-top: 20px;
 }
 </style>
 
@@ -16,15 +46,68 @@
 
 <script>
 DG.then(function () {
+    let places = [];
+    try {
+        // Используем JSON.parse для надежности
+        places = JSON.parse('{{ places_json|escapejs }}') || [];
+    } catch (e) {
+        console.error("Ошибка places_json", e);
+        places = [];
+    }
+
+    // Координаты города всегда должны быть
+    const cityLat = parseFloat('{{ city_lat }}') || 56.0153;
+    const cityLon = parseFloat('{{ city_lon }}') || 92.8932;
+    
+    console.log("Координаты города:", cityLat, cityLon);
+    console.log("Найдено мест:", places.length);
+
+    // ✅ Создаем карту ВСЕГДА в центре города
     const map = DG.map('map', {
-        center: [56.0153, 92.8932],
+        center: [cityLat, cityLon],
         zoom: 12
     });
 
-    DG.marker([56.0153, 92.8932])
-        .addTo(map)
-        .bindPopup("Красноярск");
+    const validPoints = [];
+
+    places.forEach(place => {
+        try {
+            const lat = parseFloat(place.lat);
+            const lon = parseFloat(place.lon);
+            
+            if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+                const point = [lat, lon];
+                validPoints.push(point);
+                
+                const marker = DG.marker(point)
+                    .addTo(map)
+                    .bindPopup(`
+                        <b>${place.name || 'Без названия'}</b><br>
+                        ${place.address || ''}
+                    `);
+            }
+        } catch(e) {
+            console.warn("Ошибка при обработке места:", place, e);
+        }
+    });
+
+    // 🎯 АККУРАТНОЕ центрирование
+    if (validPoints.length === 1) {
+        map.setView(validPoints[0], 14);
+    }
+    else if (validPoints.length > 1) {
+        try {
+            map.fitBounds(DG.latLngBounds(validPoints), {
+                padding: [40, 40],
+                maxZoom: 14
+            });
+        } catch(e) {
+            console.error("Ошибка fitBounds:", e);
+            map.setView([cityLat, cityLon], 12);
+        }
+    }
+    // если точек нет — остаёмся в центре города с зумом 12
 });
 </script>
-{% endblock %}
 
+{% endblock %}
