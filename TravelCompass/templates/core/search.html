@@ -4,18 +4,18 @@
 <h2>Поиск мест</h2>
 
 <form method="get" style="margin-bottom: 20px;">
-    <input type="text"
-           name="q"
-           placeholder="Кофейня, парк..."
-           value="{{ query }}">
+    <input
+        type="text"
+        name="q"
+        placeholder="Кофейня, парк..."
+        value="{{ query }}"
+    >
 
-    <select name="city">
-        {% for c in cities %}
-            <option value="{{ c }}" {% if c == city %}selected{% endif %}>
-                {{ c }}
-            </option>
-        {% endfor %}
-    </select>
+    <input type="text"
+       name="city"
+       placeholder="Город (Москва, Berlin, Tokyo...)"
+       value="{{ city }}">
+
 
     <select name="category">
         <option value="">Любая категория</option>
@@ -27,7 +27,7 @@
     <button type="submit">Искать</button>
 </form>
 
-{% if query or category %}
+{% if city %}
     <p>Найдено мест: {{ places_json|length }}</p>
 {% endif %}
 
@@ -46,68 +46,69 @@
 
 <script>
 DG.then(function () {
+
     let places = [];
     try {
-        // Используем JSON.parse для надежности
         places = JSON.parse('{{ places_json|escapejs }}') || [];
     } catch (e) {
-        console.error("Ошибка places_json", e);
         places = [];
     }
 
-    // Координаты города всегда должны быть
-    const cityLat = parseFloat('{{ city_lat }}') || 56.0153;
-    const cityLon = parseFloat('{{ city_lon }}') || 92.8932;
-    
-    console.log("Координаты города:", cityLat, cityLon);
-    console.log("Найдено мест:", places.length);
+    const cityLat = parseFloat('{{ city_lat }}') || 55.7558;
+    const cityLon = parseFloat('{{ city_lon }}') || 37.6173;
 
-    // ✅ Создаем карту ВСЕГДА в центре города
     const map = DG.map('map', {
         center: [cityLat, cityLon],
         zoom: 12
     });
 
+    const MAX_DISTANCE_KM = 25; // ❗ жёсткий радиус
     const validPoints = [];
 
+    function distanceKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+
+        const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) *
+            Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+
+        return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
     places.forEach(place => {
-        try {
-            const lat = parseFloat(place.lat);
-            const lon = parseFloat(place.lon);
-            
-            if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
-                const point = [lat, lon];
-                validPoints.push(point);
-                
-                const marker = DG.marker(point)
-                    .addTo(map)
-                    .bindPopup(`
-                        <b>${place.name || 'Без названия'}</b><br>
-                        ${place.address || ''}
-                    `);
-            }
-        } catch(e) {
-            console.warn("Ошибка при обработке места:", place, e);
-        }
+        const lat = parseFloat(place.lat);
+        const lon = parseFloat(place.lon);
+
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        const dist = distanceKm(cityLat, cityLon, lat, lon);
+
+        if (dist > MAX_DISTANCE_KM) return;
+
+        const point = [lat, lon];
+        validPoints.push(point);
+
+        DG.marker(point)
+            .addTo(map)
+            .bindPopup(`<b>${place.name || 'Без названия'}</b><br>${place.address || ''}`);
     });
 
-    // 🎯 АККУРАТНОЕ центрирование
+    // 🎯 ЦЕНТРИРОВАНИЕ
     if (validPoints.length === 1) {
         map.setView(validPoints[0], 14);
     }
     else if (validPoints.length > 1) {
-        try {
-            map.fitBounds(DG.latLngBounds(validPoints), {
-                padding: [40, 40],
-                maxZoom: 14
-            });
-        } catch(e) {
-            console.error("Ошибка fitBounds:", e);
-            map.setView([cityLat, cityLon], 12);
-        }
+        map.fitBounds(validPoints, {
+            padding: [40, 40],
+            maxZoom: 14
+        });
     }
-    // если точек нет — остаёмся в центре города с зумом 12
 });
 </script>
+
 
 {% endblock %}
