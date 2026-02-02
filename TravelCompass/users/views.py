@@ -10,6 +10,11 @@ from django.core.exceptions import ValidationError
 
 from core.models import Route
 
+# Для email
+from django.core.mail import send_mail
+from django.urls import reverse
+from django.utils.crypto import get_random_string
+
 
 def register_view(request):
     if request.method == 'POST':
