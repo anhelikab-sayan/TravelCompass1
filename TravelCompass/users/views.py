@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from TravelCompass.users.models import UserProfile
+from users.models import UserProfile
 from core.models import Route
 
 # Для email
@@ -95,6 +95,20 @@ def register_view(request):
 
     return render(request, 'users/register.html')
 
+def confirm_email_view(request, token):
+    try:
+        profile = UserProfile.objects.get(email_token=token)
+        user = profile.user
+        user.is_active = True
+        user.save()
+        profile.delete()
+
+        messages.success(request, 'Email подтверждён. Теперь можно войти.')
+        return redirect('login')
+
+    except UserProfile.DoesNotExist:
+        return render(request, 'users/confirm_failed.html')
+
 def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
@@ -108,6 +122,10 @@ def login_view(request):
 
         user = authenticate(request, username=username, password=password)
         if user:
+            if not user.is_active:
+                return render(request, 'users/login.html', {
+                    'error': 'Подтвердите email перед входом'
+            })
             login(request, user)
             messages.success(request, f'Добро пожаловать, {username}!')
             return redirect('profile')
