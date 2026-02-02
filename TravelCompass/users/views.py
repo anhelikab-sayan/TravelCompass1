@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
+from TravelCompass.users.models import UserProfile
 from core.models import Route
 
 # Для email
@@ -66,10 +67,31 @@ def register_view(request):
             password=password,
             is_active=False
         )
-        
-        login(request, user)
-        messages.success(request, f'Добро пожаловать, {username}!')
-        return redirect('profile')
+
+        # Генерация токена
+        token = get_random_string(32)
+        UserProfile.objects.create(
+            user=user,
+            email_token=token
+        )
+
+        # Ссылка подтверждения
+        confirm_link = request.build_absolute_uri(
+            reverse('confirm_email', args=[token])
+        )
+
+        # Отправка письма
+        send_mail(
+            'Подтверждение регистрации TravelCompass',
+            f'Для подтверждения регистрации перейдите по ссылке:\n{confirm_link}',
+            None,
+            [email],
+            fail_silently=False
+        )
+
+        return render(request, 'users/register.html', {
+            'success': 'Письмо отправлено. Проверьте почту для подтверждения.'
+        })
 
     return render(request, 'users/register.html')
 
