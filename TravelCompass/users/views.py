@@ -59,13 +59,14 @@ def register_view(request):
                 'email': email,
             })
 
-        # Создание пользователя
+        # Создание флажка для пользователя, который показывает, что он неактивен 
         user = User.objects.create_user(
             username=username,
             email=email,
-            password=password
+            password=password,
+            is_active=False
         )
-
+        
         login(request, user)
         messages.success(request, f'Добро пожаловать, {username}!')
         return redirect('profile')
