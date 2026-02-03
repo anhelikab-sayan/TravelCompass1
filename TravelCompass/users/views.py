@@ -15,7 +15,7 @@ from core.models import Route
 from django.core.mail import send_mail
 from django.urls import reverse
 from django.utils.crypto import get_random_string
-
+from django.conf import settings
 
 def register_view(request):
     if request.method == 'POST':
@@ -84,7 +84,7 @@ def register_view(request):
         send_mail(
             'Подтверждение регистрации TravelCompass',
             f'Для подтверждения регистрации перейдите по ссылке:\n{confirm_link}',
-            None,
+            settings.DEFAULT_FROM_EMAIL,
             [email],
             fail_silently=False
         )

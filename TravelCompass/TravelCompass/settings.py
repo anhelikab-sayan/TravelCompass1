@@ -136,10 +136,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
 EMAIL_HOST = 'smtp.mail.ru'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False  # Отключаем TLS для порта 465
+EMAIL_USE_SSL = True   # Включаем SSL для порта 465
 
-EMAIL_HOST_USER = 'ПОЧТА'
+EMAIL_HOST_USER = 'travel.compass1@mail.ru'
 EMAIL_HOST_PASSWORD = 'qbCG7139y26aleqcZfa1'
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
