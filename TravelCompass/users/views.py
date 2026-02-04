@@ -60,38 +60,54 @@ def register_view(request):
                 'email': email,
             })
 
-        # Создание флажка для пользователя, который показывает, что он неактивен 
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            is_active=False
-        )
-
-        # Генерация токена
         token = get_random_string(32)
-        UserProfile.objects.create(
-            user=user,
-            email_token=token
-        )
-
-        # Ссылка подтверждения
         confirm_link = request.build_absolute_uri(
             reverse('confirm_email', args=[token])
         )
 
-        # Отправка письма
-        send_mail(
-            'Подтверждение регистрации TravelCompass',
-            f'Для подтверждения регистрации перейдите по ссылке:\n{confirm_link}',
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False
-        )
-
-        return render(request, 'users/register.html', {
-            'success': 'Письмо отправлено. Проверьте почту для подтверждения.'
-        })
+        try:
+            send_mail(
+                subject='Подтверждение регистрации в TravelCompass',
+                message=(
+                    f'Здравствуйте!\n\n'
+                    f'Вы зарегистрировались в сервисе TravelCompass.\n\n'
+                    f'Чтобы завершить регистрацию и подтвердить ваш email, '
+                    f'перейдите по ссылке ниже:\n\n'
+                    f'{confirm_link}\n\n'
+                    f'Если вы не регистрировались на нашем сайте — просто '
+                    f'проигнорируйте это письмо.\n\n'
+                    f'С уважением,\n'
+                    f'Команда TravelCompass'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                is_active=False 
+            )
+            
+            UserProfile.objects.create(
+                user=user,
+                email_token=token
+            )
+            
+            return render(request, 'users/register.html', {
+                'success': 'Письмо отправлено! Проверьте почту для подтверждения.'
+            })
+            
+        except Exception as e:
+            print(f"Ошибка отправки email: {e}")
+            
+            return render(request, 'users/register.html', {
+                'error': f'Ошибка отправки письма: {str(e)[:100]}...',
+                'username': username,
+                'email': email,
+            })
 
     return render(request, 'users/register.html')
 
@@ -99,15 +115,24 @@ def confirm_email_view(request, token):
     try:
         profile = UserProfile.objects.get(email_token=token)
         user = profile.user
+        
+        # Дополнительная проверка: не активирован ли уже
+        if user.is_active:
+            messages.warning(request, 'Этот email уже подтвержден.')
+            return redirect('login')
+        
+        # Активируем пользователя
         user.is_active = True
         user.save()
-        profile.delete()
+        profile.delete()  # Удаляем токен после использования
 
-        messages.success(request, 'Email подтверждён. Теперь можно войти.')
+        messages.success(request, 'Email подтвержден! Теперь можно войти.')
         return redirect('login')
 
     except UserProfile.DoesNotExist:
-        return render(request, 'users/confirm_failed.html')
+        # Токен не найден - возможно уже использован
+        messages.error(request, 'Недействительная или устаревшая ссылка подтверждения.')
+        return redirect('register')
 
 def login_view(request):
     if request.method == 'POST':
