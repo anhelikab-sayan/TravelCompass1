@@ -26,36 +26,44 @@ def register_view(request):
 
         errors = []
 
-        # Проверка обязательных полей
-        if not all([username, email, password, password2]):
-            errors.append('Заполните все поля')
+        # Обязательные поля
+        if not username:
+            errors.append('Логин обязателен')
 
-        # Проверка совпадения паролей
-        elif password != password2:
-            errors.append('Пароли не совпадают')
+        if not email:
+            errors.append('Email обязателен')
 
-        # Проверка длины пароля
-        elif len(password) < 6:
-            errors.append('Пароль должен содержать минимум 6 символов')
+        if not password:
+            errors.append('Пароль обязателен')
 
-        # Проверка формата email через Django
-        else:
+        if not password2:
+            errors.append('Повторите пароль')
+
+        # Проверка паролей
+        if password and password2:
+            if password != password2:
+                errors.append('Пароли не совпадают')
+
+            if len(password) < 6:
+                errors.append('Пароль должен содержать минимум 6 символов')
+
+        # Проверка email
+        if email:
             try:
                 validate_email(email)
             except ValidationError:
                 errors.append('Введите корректный email')
 
-        # Проверка уникальности username
-        if not errors and User.objects.filter(username=username).exists():
+        # Уникальность
+        if username and User.objects.filter(username=username).exists():
             errors.append('Пользователь с таким логином уже существует')
 
-        # Проверка уникальности email
-        if not errors and User.objects.filter(email=email).exists():
+        if email and User.objects.filter(email=email).exists():
             errors.append('Пользователь с таким email уже существует')
 
         if errors:
             return render(request, 'users/register.html', {
-                'error': errors[0],
+                'errors': errors,
                 'username': username,
                 'email': email,
             })

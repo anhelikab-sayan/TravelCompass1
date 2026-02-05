@@ -2,8 +2,12 @@
 {% block body %}
 <h2>Регистрация</h2>
 
-{% if error %}
-  <p style="color: red;">{{ error }}</p>
+{% if errors %}
+  <ul style="color: red;">
+    {% for error in errors %}
+      <li>{{ error }}</li>
+    {% endfor %}
+  </ul>
 {% endif %}
 
 {% if success %}
