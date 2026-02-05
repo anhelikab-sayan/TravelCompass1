@@ -1,6 +1,8 @@
+# d2gis.py - исправленная версия
 import requests
 from django.conf import settings
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -130,36 +132,45 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
         logger.error(f"Нет координат для города '{city_name}'")
         return []
     
-    search_parts = []
+    # Формируем поисковый запрос
+    search_query = query.strip() if query and query.strip() else ""
     
-    if query and query.strip():
-        search_parts.append(query.strip())
-    
+    # Если указана категория, добавляем к запросу
     CATEGORY_MAP = {
-        "cafe": "кафе кофейня",
-        "park": "парк сквер",
+        "cafe": "кафе",
+        "park": "парк",
         "restaurant": "ресторан",
     }
     
-    if category in CATEGORY_MAP:
-        search_parts.append(CATEGORY_MAP[category])
+    if category and category in CATEGORY_MAP:
+        if not search_query:
+            search_query = CATEGORY_MAP[category]
+        else:
+            # Убираем дублирование, если пользователь уже ввел то же слово
+            if CATEGORY_MAP[category] not in search_query.lower():
+                search_query = f"{search_query} {CATEGORY_MAP[category]}"
     
-    search_query = " ".join(search_parts) if search_parts else "*"
+    # Если запрос пустой, ищем всё в этом городе
+    if not search_query:
+        search_query = city_name
+    else:
+        # Добавляем город к запросу для более точного поиска
+        search_query = f"{search_query} {city_name}"
     
     try:
+        # ПАРАМЕТРЫ КАК В РАБОЧЕМ ПРИМЕРЕ
         params = {
             "key": settings.DG2IS_API_KEY,
             "q": search_query,
-            "point": f"{city_lon},{city_lat}",
-            "radius": 10000,
-            "page_size": 30,
-            "type": "branch",
-            "fields": "items.point,items.name,items.address_name",
+            "fields": "items.point,items.name,items.address_name,items.rubrics,items.type",
+            "page_size": 10,  # ИЗМЕНИЛОСЬ: от 1 до 10 согласно ошибке
             "locale": "ru_RU",
+            "sort": "relevance",
         }
         
-        logger.info(f"Поиск мест в городе '{city_name}' с координатами {city_lat},{city_lon}")
-        logger.info(f"Запрос: {search_query}")
+        logger.info(f"Поиск мест для города '{city_name}'")
+        logger.info(f"Запрос: '{search_query}', категория: '{category}'")
+        logger.info(f"Параметры: {params}")
         
         response = requests.get(
             "https://catalog.api.2gis.com/3.0/items",
@@ -167,15 +178,32 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
             timeout=15
         )
         
+        logger.info(f"Статус API: {response.status_code}")
+        
         if response.status_code != 200:
-            logger.error(f"2GIS API ошибка при поиске мест: {response.status_code}")
-            logger.error(f"Ответ: {response.text[:200]}")
+            logger.error(f"2GIS API ошибка: {response.status_code}")
+            logger.error(f"Ответ: {response.text[:500]}")
             return []
         
         data = response.json()
-        places = []
         
-        for item in data.get("result", {}).get("items", []):
+        # Проверяем на ошибки в ответе
+        if data.get("meta", {}).get("code") != 200:
+            error_msg = data.get("meta", {}).get("error", {}).get("message", "Unknown error")
+            logger.error(f"API вернул ошибку: {error_msg}")
+            logger.error(f"Полный ответ: {json.dumps(data, ensure_ascii=False)}")
+            return []
+        
+        # Отладочный вывод
+        logger.debug(f"Полный ответ API: {json.dumps(data, ensure_ascii=False)[:1000]}")
+        
+        places = []
+        items = data.get("result", {}).get("items", [])
+        total = data.get("result", {}).get("total", 0)
+        
+        logger.info(f"Всего найдено по API: {total} элементов, возвращено: {len(items)}")
+        
+        for item in items:
             point = item.get("point")
             if not point:
                 continue
@@ -186,18 +214,64 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
             if place_lat is None or place_lon is None:
                 continue
             
+            # Получаем рубрики для фильтрации
+            rubrics = item.get("rubrics", [])
+            rubric_names = [r.get("name", "") for r in rubrics if isinstance(r, dict)]
+            
+            # Фильтрация по категории (если указана)
+            if category:
+                item_type = item.get("type", "").lower()
+                rubric_text = " ".join(rubric_names).lower()
+                item_name = item.get("name", "").lower()
+                
+                # Проверяем, подходит ли место под категорию
+                is_cafe = category == "cafe" and (
+                    "кафе" in rubric_text or 
+                    "кофейня" in rubric_text or 
+                    "кафе" in item_type or
+                    "кофейня" in item_name
+                )
+                is_park = category == "park" and (
+                    "парк" in rubric_text or 
+                    "сквер" in rubric_text or 
+                    "парк" in item_type or
+                    "парк" in item_name or
+                    "сквер" in item_name
+                )
+                is_restaurant = category == "restaurant" and (
+                    "ресторан" in rubric_text or 
+                    "ресторан" in item_type or
+                    "ресторан" in item_name
+                )
+                
+                if category == "cafe" and not is_cafe:
+                    continue
+                elif category == "park" and not is_park:
+                    continue
+                elif category == "restaurant" and not is_restaurant:
+                    continue
+            
             places.append({
                 "name": item.get("name", "Без названия"),
                 "address": item.get("address_name", ""),
                 "lat": place_lat,
                 "lon": place_lon,
+                "type": item.get("type", ""),
+                "rubrics": rubric_names,
             })
         
-        logger.info(f"Найдено {len(places)} мест в городе '{city_name}'")
+        logger.info(f"После фильтрации осталось {len(places)} мест")
+        
+        # Для отладки - выводим первые 5 мест
+        if places:
+            for i, place in enumerate(places[:5]):
+                logger.info(f"Место {i+1}: {place['name']} - {place['address']}")
+                logger.info(f"  Рубрики: {place['rubrics']}")
+        
         return places
         
     except Exception as e:
-        logger.error(f"Ошибка поиска мест в городе '{city_name}': {e}")
+        logger.error(f"Ошибка поиска мест в городе '{city_name}': {e}", exc_info=True)
         return []
 
 def search_places(query="", city="", category=""):
@@ -213,7 +287,7 @@ def search_places(query="", city="", category=""):
         logger.error(f"Не удалось получить координаты города '{city}'")
         return [], None
     
-    logger.info(f"Получены координаты для '{city}': lat={city_data['lat']}, lon={city_data['lon']}, тип lat: {type(city_data['lat'])}, тип lon: {type(city_data['lon'])}")
+    logger.info(f"Получены координаты для '{city}': lat={city_data['lat']}, lon={city_data['lon']}")
     
     places = search_places_in_city_using_coordinates(
         query=query,

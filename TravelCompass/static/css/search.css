@@ -1,0 +1,50 @@
+
+/* Карта */
+.map-container {
+    width: 100%;
+    height: 600px;
+    border-radius: 12px;
+    margin-top: 20px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(83, 58, 51, 0.15);
+}
+
+/* Стили для карты (будут применяться через JavaScript) */
+.control-button {
+    background: linear-gradient(135deg, #648EC0 0%, #902e13 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    margin: 5px;
+    transition: transform 0.2s;
+}
+
+.control-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(83, 58, 51, 0.2);
+}
+
+/* Стили для маркеров категорий */
+.category-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    color: #632919;
+    border-radius: 12px;
+    font-size: 11px;
+    margin: 2px;
+    font-weight: 500;
+}
+
+.category-badge.cafe { background-color: #B0D2EC; }
+.category-badge.restaurant { background-color: #849DBB; color: white; }
+.category-badge.park { background-color: #648EC0; color: white; }
+.category-badge.shop { background-color: #B5ACA3; }
+.category-badge.pharmacy { background-color: #FFB5A3; }
+.category-badge.bank { background-color: #533A33; color: white; }
+.category-badge.mall { background-color: #FF9A76; }
+.category-badge.cinema { background-color: #9C89B8; color: white; }
+.category-badge.museum { background-color: #F0A6CA; }
+.category-badge.default { background-color: #B0D2EC; }
