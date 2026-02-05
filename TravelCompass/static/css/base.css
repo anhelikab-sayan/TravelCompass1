@@ -1,0 +1,85 @@
+/* Основные */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #f4f6f8;
+    color: #3a3a3a;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Навигация */
+nav {
+    background: linear-gradient(
+        135deg,
+        #5fa8d3,
+        #b08968
+    );
+    padding: 15px 25px;
+    border-radius: 14px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+nav span {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* Ссылки */
+nav a {
+    color: #ffffff;
+    text-decoration: none;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.2);
+    transition: all 0.25s ease;
+}
+
+nav a:hover {
+    background-color: #9a775a;  
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(139, 107, 79, 0.6);
+}
+
+
+/* Разделитель */
+hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(
+        to right,
+        transparent,
+        #5fa8d3,
+        #b08968,
+        transparent
+    );
+    margin: 20px 0 30px 0;
+}
+
+/* Сообщения */
+.messages ul {
+    list-style: none;
+}
+
+.messages li {
+    background-color: #eef6fb;
+    padding: 12px 18px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    border-left: 5px solid #5fa8d3;
+    color: #2f3e46;
+    font-weight: 500;
+}
