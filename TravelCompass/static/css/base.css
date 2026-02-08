@@ -83,3 +83,21 @@ hr {
     color: #2f3e46;
     font-weight: 500;
 }
+
+/* Адаптация */
+@media (max-width: 600px) {
+    body {
+        padding: 15px;
+    }
+    
+    nav {
+        padding: 12px;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    nav a {
+        padding: 8px 14px;
+        font-size: 14px;
+    }
+}
