@@ -1,0 +1,63 @@
+.profile-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+h2 {
+    color: #2f3e46;
+    text-align: center;
+    margin-bottom: 25px;
+    font-size: 28px;
+}
+
+h3 {
+    color: #3a506b;
+    margin: 30px 0 15px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #5fa8d3;
+}
+
+p {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+ul {
+    list-style: none;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+li {
+    padding: 12px;
+    border-left: 4px solid #b08968;
+    margin-bottom: 10px;
+    background: #f9f9f9;
+    border-radius: 6px;
+}
+
+li:last-child {
+    margin-bottom: 0;
+}
+
+/* Адаптивность */
+@media (max-width: 600px) {
+    .profile-container {
+        padding: 15px;
+    }
+    
+    h2 {
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+    
+    p, ul {
+        padding: 12px;
+    }
+}
