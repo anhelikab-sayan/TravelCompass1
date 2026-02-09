@@ -131,4 +131,65 @@ class UserPagesTests(TestCase):
         response = self.client.get(reverse('profile'))
         self.assertEqual(response.status_code, 302)
 
+class UserAuthNegativeTests(TestCase):
+    # Негативные тесты авторизации и регистрации
+    def test_login_with_wrong_username(self):
+
+    # Проверка входа с несуществующим логином
+        User.objects.create_user(
+            username='realuser',
+            password='12345678',
+            is_active=True
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'wronguser',
+                'password': '12345678',
+            }
+        )
+
+        self.assertContains(response, 'Неверный логин или пароль')
+    
+    def test_login_with_wrong_password(self):
+        # Проверка входа с неправильным паролем
+
+        User.objects.create_user(
+            username='testuser',
+            password='correctpass',
+            is_active=True
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'testuser',
+                'password': 'wrongpass',
+            }
+        )
+
+        self.assertContains(response, 'Неверный логин или пароль')
+    
+    def test_registration_with_existing_email(self):
+        # Проверка регистрации с email, который уже существует в системе
+
+        User.objects.create_user(
+            username='user1',
+            email='test@example.com',
+            password='12345678'
+        )
+
+        response = self.client.post(
+            reverse('register'),
+            {
+                'username': 'user2',
+                'email': 'test@example.com',
+                'password': '12345678',
+                'password2': '12345678',
+            }
+        )
+
+        self.assertContains(response, 'Пользователь с таким email уже существует')
+
 
