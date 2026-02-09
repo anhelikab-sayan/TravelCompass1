@@ -68,6 +68,67 @@ class EmailConfirmationTests(TestCase):
             UserProfile.objects.filter(user=user).exists()
         )
 
+class UserPagesTests(TestCase):
 
+    # Проверка доступности страниц и авторизации
+
+
+    def test_register_page_opens(self):
+
+        # Проверка, что страница регистрации открывается
+
+        response = self.client.get(reverse('register'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_login_page_opens(self):
+
+        # Проверка, что страница входа открывается
+
+        response = self.client.get(reverse('login'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_profile_requires_login(self):
+
+        # Проверка, что без авторизации профиль недоступен
+
+        response = self.client.get(reverse('profile'))
+        self.assertEqual(response.status_code, 302)  # редирект на логин
+
+    def test_profile_after_login(self):
+
+        # Проверка доступа к профилю после входа
+
+        user = User.objects.create_user(
+            username='testuser',
+            password='123456',
+            is_active=True
+        )
+
+        self.client.login(username='testuser', password='123456')
+        response = self.client.get(reverse('profile'))
+        self.assertEqual(response.status_code, 200)
+    
+    def test_logout(self):
+
+        # Проверка выхода пользователя из системы
+
+        user = User.objects.create_user(
+            username='logoutuser',
+            password='123456',
+            is_active=True
+        )
+
+        # Логинимся
+        self.client.login(username='logoutuser', password='123456')
+
+        # Выходим
+        response = self.client.get(reverse('logout'))
+
+        # После выхода должен редирект 
+        self.assertEqual(response.status_code, 302)
+
+        # Проверяем, что профиль снова недоступен
+        response = self.client.get(reverse('profile'))
+        self.assertEqual(response.status_code, 302)
 
 
