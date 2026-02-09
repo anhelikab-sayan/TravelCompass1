@@ -35,4 +35,39 @@ class UserRegistrationTests(TestCase):
         self.assertIn('Подтверждение', mail.outbox[0].subject)
 
 
+class EmailConfirmationTests(TestCase):
+    # Тесты подтверждения email
+
+    def test_email_confirmation_activates_user(self):
+
+        # Проверяем, что:
+        # переход по ссылке подтверждает email
+        # пользователь становится активным
+
+        user = User.objects.create_user(
+            username='confirmuser',
+            email='confirm@example.com',
+            password='12345678',
+            is_active=False
+        )
+
+        profile = UserProfile.objects.create(
+            user=user,
+            email_token='testtoken123'
+        )
+
+        response = self.client.get(
+            reverse('confirm_email', args=['testtoken123'])
+        )
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+
+        # Профиль удалён после подтверждения
+        self.assertFalse(
+            UserProfile.objects.filter(user=user).exists()
+        )
+
+
+
 
