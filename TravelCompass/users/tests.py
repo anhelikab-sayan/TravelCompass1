@@ -192,4 +192,26 @@ class UserAuthNegativeTests(TestCase):
 
         self.assertContains(response, 'Пользователь с таким email уже существует')
 
+    def test_registration_shows_all_errors(self):
+
+        # Проверка, что при неверной регистрации выводятся все ошибки, а не только первая
+
+
+        response = self.client.post(
+            reverse('register'),
+            {
+                'username': '',              # нет логина
+                'email': 'bademail',          # неправильный email
+                'password': '12',             # короткий пароль
+                'password2': '42',            # не совпадает
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Проверяем, что несколько ошибок отображаются
+        self.assertContains(response, 'Логин обязателен')
+        self.assertContains(response, 'Введите корректный email')
+        self.assertContains(response, 'Пароли не совпадают')
+        self.assertContains(response, 'Пароль должен содержать минимум 6 символов')
 
