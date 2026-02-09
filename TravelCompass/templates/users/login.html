@@ -7,6 +7,12 @@
 {% block body %}
 <h2>Вход</h2>
 
+{% if error %}
+  <ul style="color: red;">
+    <li>{{ error }}</li>
+  </ul>
+{% endif %}
+
 <form method="post">
   {% csrf_token %}
 
