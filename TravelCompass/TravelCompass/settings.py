@@ -143,6 +143,6 @@ EMAIL_USE_TLS = False  # Отключаем TLS для порта 465
 EMAIL_USE_SSL = True   # Включаем SSL для порта 465
 
 EMAIL_HOST_USER = 'travel.compass1@mail.ru'
-EMAIL_HOST_PASSWORD = '9nhf1Ke4U1CdFR5pd7D1'
+EMAIL_HOST_PASSWORD = 'tTrENm1wS08Lhzm9uZnU'
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
