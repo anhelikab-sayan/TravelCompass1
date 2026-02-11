@@ -274,9 +274,14 @@ def search_places(query="", city="", category=""):
     )
     
     return places, city_data
-
-
 import math
+import requests
+import json
+import logging
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Рассчитывает расстояние между двумя точками в метрах (формула гаверсинусов)"""
     R = 6371000  # радиус Земли в метрах
@@ -291,9 +296,6 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     
     return R * c
 
-import requests
-from django.conf import settings
-import re
 def parse_linestring(ls):
     coords = []
     ls = ls.replace("LINESTRING(", "").replace(")", "")
@@ -305,60 +307,136 @@ def parse_linestring(ls):
         })
     return coords
 
-def calculate_route_2gis(points):
-    """Работающая версия на основе документации 2GIS"""
+def calculate_route_osrm(points):
+    """Используем бесплатный OSRM для построения пеших маршрутов по дорогам"""
     if len(points) < 2:
         return {"success": False, "error": "Недостаточно точек"}
     
     try:
-        # Согласно документации 2GIS, формат должен быть такой:
-        # points: [{type: "stop", point: {lat: ..., lon: ...}}, ...]
-        route_points = []
-        for lat, lon in points:
-            route_points.append({
-                "type": "stop",
-                "point": {
-                    "lat": lat,
-                    "lon": lon
-                }
-            })
+        # Формируем URL для OSRM (пеший маршрут)
+        coords_str = ";".join([f"{lon},{lat}" for lat, lon in points])
+        url = f"http://router.project-osrm.org/route/v1/walking/{coords_str}"
         
-        payload = {
-            "points": route_points,
-            "transport": "pedestrian",
-            "locale": "ru_RU"
+        params = {
+            "overview": "full",      # Полная геометрия маршрута
+            "geometries": "geojson", # Формат GeoJSON
+            "steps": "false",        # Не нужны детальные шаги
+            "alternatives": "false"  # Только один маршрут
         }
         
-        logger.info(f"Отправка запроса с {len(points)} точками")
+        logger.info(f"Запрос к OSRM для {len(points)} точек: {coords_str[:100]}...")
         
-        response = requests.post(
-            "https://routing.api.2gis.com/routing/7.0.0/global",
-            json=payload,
-            params={"key": settings.DG2IS_API_KEY},
-            headers={"Content-Type": "application/json"},
-            timeout=15
-        )
-        
-        logger.info(f"Ответ: {response.status_code}")
+        response = requests.get(url, params=params, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            logger.info(f"Успешно! Данные получены")
             
-            # Здесь обрабатывайте data согласно реальной структуре ответа
-            # Временный fallback:
-            return create_simple_route(points)
-        else:
-            logger.error(f"Ошибка {response.status_code}: {response.text}")
-            return create_simple_route(points)
+            if data.get("code") == "Ok" and data.get("routes"):
+                route = data["routes"][0]
+                
+                # Конвертируем из формата GeoJSON [lon, lat] в наш формат {lat, lon}
+                route_coordinates = []
+                geometry = route["geometry"]["coordinates"]
+                
+                for coords in geometry:
+                    if len(coords) >= 2:
+                        lon, lat = coords[0], coords[1]
+                        route_coordinates.append({
+                            "lat": lat,
+                            "lon": lon
+                        })
+                
+                logger.info(f"OSRM построил маршрут: {len(route_coordinates)} точек, {route['distance']:.0f}м, {route['duration']:.0f}с")
+                
+                return {
+                    "success": True,
+                    "distance": route["distance"],      # в метрах
+                    "duration": route["duration"],      # в секундах
+                    "route_coordinates": route_coordinates
+                }
+        
+        logger.error(f"OSRM ошибка {response.status_code}: {response.text[:200]}")
+        return {"success": False, "error": f"OSRM ошибка {response.status_code}"}
+        
+    except Exception as e:
+        logger.error(f"Ошибка OSRM: {e}")
+        return {"success": False, "error": str(e)}
+
+def calculate_route_2gis(points):
+    """Основная функция для построения маршрутов с fallback на OSRM"""
+    if len(points) < 2:
+        return {"success": False, "error": "Недостаточно точек"}
+    
+    # Сначала пробуем OSRM (бесплатный, работает по дорогам)
+    logger.info(f"Пробуем построить пеший маршрут через OSRM для {len(points)} точек")
+    osrm_result = calculate_route_osrm(points)
+    
+    if osrm_result["success"]:
+        logger.info("Успешно использован OSRM для построения маршрута по дорогам")
+        return osrm_result
+    
+    # Если OSRM не сработал, пробуем 2GIS (но скорее всего он тоже не сработает)
+    logger.info("OSRM не сработал, пробуем 2GIS...")
+    try:
+        # Упрощенный формат для 2GIS
+        points_str = ";".join([f"{lon},{lat}" for lat, lon in points])
+        
+        params = {
+            "key": settings.DG2IS_API_KEY,
+            "points": points_str,
+            "type": "pedestrian",
+            "locale": "ru_RU"
+        }
+        
+        logger.info(f"Запрос к 2GIS Routing API: {points_str[:100]}...")
+        
+        response = requests.get(
+            "https://routing.api.2gis.com/get_route",
+            params=params,
+            timeout=15
+        )
+        
+        logger.info(f"2GIS API ответ: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"2GIS API успешно")
+            
+            # Обработка ответа 2GIS
+            route_coordinates = []
+            total_distance = 0
+            total_duration = 0
+            
+            if "result" in data and data["result"]:
+                route = data["result"][0]
+                total_distance = route.get("total_distance", 0)
+                total_duration = route.get("total_duration", 0)
+                
+                # Парсим геометрию
+                geometry = route.get("geometry")
+                if geometry:
+                    route_coordinates = parse_linestring(geometry)
+            
+            if route_coordinates:
+                logger.info(f"2GIS построил маршрут: {len(route_coordinates)} точек")
+                return {
+                    "success": True,
+                    "distance": total_distance,
+                    "duration": total_duration,
+                    "route_coordinates": route_coordinates
+                }
+        
+        # Если 2GIS не сработал, возвращаем упрощенный маршрут
+        logger.warning("Ни OSRM, ни 2GIS не сработали, используем упрощенный маршрут")
+        return create_simple_route(points)
             
     except Exception as e:
-        logger.error(f"Ошибка: {e}")
+        logger.error(f"Ошибка 2GIS Routing API: {e}")
+        # Возвращаем упрощенный маршрут
         return create_simple_route(points)
 
-
 def create_simple_route(points):
-    """Создание простого маршрута через точки"""
+    """Создание упрощенного маршрута (по прямой) - используется как последнее средство"""
     route_coordinates = []
     total_distance = 0
     
@@ -368,9 +446,11 @@ def create_simple_route(points):
             prev_lat, prev_lon = points[i-1]
             total_distance += calculate_distance(prev_lat, prev_lon, lat, lon)
     
+    logger.warning(f"Используем упрощенный маршрут (по прямой): {total_distance:.0f}м")
+    
     return {
         "success": True,
         "distance": total_distance,
-        "duration": total_distance / 1.4,
+        "duration": total_distance / 1.4,  # Пешком ~5 км/ч
         "route_coordinates": route_coordinates
     }
