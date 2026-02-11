@@ -3,6 +3,8 @@
 
 {% block content %}
 
+{% block body %}
+
 <link rel="stylesheet" href="{% static 'css/search.css' %}">
 
 <h2 class="page-title">Поиск мест в городе</h2>
@@ -594,5 +596,5 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleEndPoint();
 });
 </script>
-
+{% endblock %}
 {% endblock %}

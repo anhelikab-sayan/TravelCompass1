@@ -83,7 +83,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'TravelCompass',
         'USER': 'postgres',
-        'PASSWORD': 'postgres',
+        'PASSWORD': 'Postgres',
         'HOST': 'localhost',
         'PORT': '5432',
         'CONN_MAX_AGE': 600,
@@ -128,7 +128,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [
-    BASE_DIR / 'static',
+    BASE_DIR / 'TravelCompass' / 'static',  
+    BASE_DIR / 'static',             
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
