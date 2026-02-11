@@ -1,87 +1,163 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
-<h2>Поиск мест в городе</h2>
 
-<form method="get" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-    <input
-        type="text"
-        name="q"
-        placeholder="Название места..."
-        value="{{ query }}"
-        style="padding: 10px; flex: 1; min-width: 200px; border: 1px solid #ddd; border-radius: 4px;"
-    >
-    
-    <input
-        type="text"
-        name="city"
-        placeholder="Введите город..."
-        value="{{ city }}"
-        style="padding: 10px; flex: 1; min-width: 200px; border: 1px solid #ddd; border-radius: 4px;"
-        required
-    >
-    
-    <select name="category" style="padding: 10px; min-width: 150px; border: 1px solid #ddd; border-radius: 4px;">
+<link rel="stylesheet" href="{% static 'css/search.css' %}">
+
+<h2 class="page-title">Поиск мест в городе</h2>
+
+<form method="get" class="search-form">
+    <input type="text" name="q" placeholder="Название места..." value="{{ query }}">
+    <input type="text" name="city" placeholder="Введите город..." value="{{ city }}" required>
+
+    <select name="category">
         <option value="">Все категории</option>
         <option value="cafe" {% if category == "cafe" %}selected{% endif %}>Кофейни</option>
         <option value="park" {% if category == "park" %}selected{% endif %}>Парки</option>
         <option value="restaurant" {% if category == "restaurant" %}selected{% endif %}>Рестораны</option>
+        <option value="museum" {% if category == "museum" %}selected{% endif %}>Музеи</option>
+        <option value="theater" {% if category == "theater" %}selected{% endif %}>Театры</option>
+        <option value="cinema" {% if category == "cinema" %}selected{% endif %}>Кинотеатры</option>
+        <option value="shop" {% if category == "shop" %}selected{% endif %}>Магазины</option>
+        <option value="attraction" {% if category == "attraction" %}selected{% endif %}>Достопримечательности</option>
     </select>
-    
-    <button type="submit" style="padding: 10px 25px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-        🔍 Найти
-    </button>
+
+    <button type="submit">🔍 Найти</button>
 </form>
 
-{% if error_message %}
-    <div style="margin-bottom: 15px; padding: 12px; background-color: #ffebee; border-radius: 5px; border-left: 4px solid #f44336;">
-        <strong>⚠️ {{ error_message }}</strong>
-    </div>
-{% endif %}
+<div class="route-box">
+    <h3>🗺️ Планирование пешего маршрута</h3>
 
-{% if city and city_found %}
-    <div style="margin-bottom: 15px; padding: 12px; background-color: #e7f7e7; border-radius: 5px; border-left: 4px solid #4CAF50;">
-        <strong>✅ Поиск в городе: <span style="color: #2e7d32;">{{ city_name }}</span></strong>
-        <br>
-        <span style="font-size: 14px; color: #555;">
-            Координаты центра: {{ city_lat_display }}, {{ city_lon_display }} |
-            Найдено мест: <span id="places-count">{{ places_count }}</span>
-        </span>
-    </div>
-{% endif %}
+    <form id="route-form" class="route-form">
+
+        <div>
+            <label>📍 Начальная точка</label>
+            <input type="text" id="start-point">
+            <button type="button" onclick="useCurrentLocation()">📍 Использовать моё местоположение</button>
+        </div>
+
+        <div>
+            <label>🎯 Конечная точка</label>
+
+            <select id="end-type" onchange="toggleEndPoint()">
+                <option value="start">Вернуться в начало</option>
+                <option value="specific">Конкретная точка</option>
+                <option value="category">Тип места</option>
+            </select>
+
+            <div id="specific-point-container">
+                <input type="text" id="end-point-specific">
+            </div>
+
+            <div id="category-point-container">
+                <select id="end-category">
+                    <option value="cafe">Кафе</option>
+                    <option value="restaurant">Ресторан</option>
+                    <option value="park">Парк</option>
+                    <option value="museum">Музей</option>
+                    <option value="theater">Театр</option>
+                    <option value="cinema">Кинотеатр</option>
+                    <option value="shop">Магазин</option>
+                </select>
+            </div>
+        </div>
+
+        <div>
+            <label>⏱️ Время прогулки</label>
+            <select id="walking-time">
+                <option value="30">30 минут</option>
+                <option value="60">1 час</option>
+                <option value="120">2 часа</option>
+                <option value="180">3 часа</option>
+                <option value="240">4 часа</option>
+                <option value="300">5 часов</option>
+            </select>
+
+            <label>🎯 Что посетить</label>
+
+            <div class="checkbox-list">
+                <label><input type="checkbox" name="visit-category" value="cafe" checked> Кафе</label>
+                <label><input type="checkbox" name="visit-category" value="park" checked> Парки</label>
+                <label><input type="checkbox" name="visit-category" value="restaurant"> Рестораны</label>
+                <label><input type="checkbox" name="visit-category" value="museum"> Музеи</label>
+                <label><input type="checkbox" name="visit-category" value="theater"> Театры</label>
+                <label><input type="checkbox" name="visit-category" value="cinema"> Кино</label>
+                <label><input type="checkbox" name="visit-category" value="shop"> Магазины</label>
+                <label><input type="checkbox" name="visit-category" value="attraction"> Достопримечательности</label>
+            </div>
+
+        </div>
+
+        <div class="route-buttons">
+            <button type="button" onclick="planRoute()">🗺️ Построить маршрут</button>
+            <button type="button" onclick="clearRoute()" class="danger">❌ Очистить</button>
+        </div>
+    </form>
+</div>
+
+<div id="route-info"></div>
 
 <div id="map"></div>
 
-<style>
-#map {
-    width: 100%;
-    height: 500px;
-    border-radius: 12px;
-    margin-top: 20px;
-    border: 2px solid #ddd;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.control-button {
-    background: white;
-    border: 2px solid #4CAF50;
-    padding: 8px 15px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-weight: bold;
-    color: #4CAF50;
-    margin: 5px;
-}
-
-.control-button:hover {
-    background: #4CAF50;
-    color: white;
-}
-</style>
-
 <script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full"></script>
 
+
+{% if error_message %}
+<div class="error-box">
+    ⚠️ {{ error_message }}
+</div>
+{% endif %}
+
+{% if city and city_found %}
+<div class="success-box">
+    ✅ Поиск в городе: {{ city_name }} <br>
+    Центр: {{ city_lat_display }}, {{ city_lon_display }} |
+    Найдено мест: <span id="places-count">{{ places_count }}</span>
+</div>
+{% endif %}
+<div id="route-info">
+    <h3>📊 Информация о маршруте</h3>
+    <div id="route-details">
+        <!-- Здесь будет отображаться информация о маршруте -->
+    </div>
+</div>
+
+
 <script>
+let map = null;
+let startMarker = null;
+let endMarker = null;
+let routePolyline = null;
+let placesMarkers = [];
+let currentRoute = null;
+let routeMarkers = [];
+let radiusCircle = null;
+
+function clearMapBeforeRoute() {
+
+    // Удаляем найденные места
+    placesMarkers.forEach(m => map.removeLayer(m));
+    placesMarkers = [];
+
+    // Удаляем точки маршрута
+    routeMarkers.forEach(m => map.removeLayer(m));
+    routeMarkers = [];
+
+    // Удаляем маршрут
+    if (routePolyline) {
+        map.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+
+    // Удаляем радиус
+    if (radiusCircle) {
+        map.removeLayer(radiusCircle);
+        radiusCircle = null;
+    }
+}
+
+
 DG.then(function () {
     let places = [];
     try {
@@ -93,8 +169,6 @@ DG.then(function () {
 
     console.log("Загружено мест:", places.length);
     
-    // КООРДИНАТЫ ГОРОДА ИЗ 2GIS API
-    // ВАЖНО: Django передает координаты с точкой как строку
     const cityLat = parseFloat('{{ city_lat }}');
     const cityLon = parseFloat('{{ city_lon }}');
     const defaultZoom = parseInt('{{ default_zoom }}') || 12;
@@ -102,33 +176,43 @@ DG.then(function () {
     const cityFound = {% if city_found %}true{% else %}false{% endif %};
     const cityName = '{{ city_name|escapejs }}';
     
-    // Проверяем координаты
     let mapCenter, mapZoom;
     if (isNaN(cityLat) || isNaN(cityLon)) {
         console.error("❌ Некорректные координаты города:", cityLat, cityLon);
-        console.log("Строка координат:", '{{ city_lat }}', '{{ city_lon }}');
         mapCenter = [55.7558, 37.6176];
         mapZoom = 4;
     } else {
         mapCenter = [cityLat, cityLon];
         mapZoom = defaultZoom;
-        console.log("✅ Используем координаты 2GIS:", mapCenter, "(точные значения)");
+        console.log("✅ Используем координаты 2GIS:", mapCenter);
     }
     
-    const map = DG.map('map', {
+    map = DG.map('map', {
         center: mapCenter,
         zoom: mapZoom,
         fullscreenControl: true,
         zoomControl: true
     });
     
+    // Добавляем контроль карты
     DG.control.zoom({ position: 'topright' }).addTo(map);
     
-    let cityMarker = null;
-    
-    if (cityFound && hasCity) {
-        console.log("Добавляем маркер центра города:", cityName, "координаты:", cityLat, cityLon);
+    // Обработчик клика по карте для выбора точки
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
         
+        // Определяем, какую точку устанавливаем
+        if (!startMarker) {
+            setStartPoint([lat, lng], `Выбранная точка: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        } else if (document.getElementById('end-type').value === 'specific' && !endMarker) {
+            setEndPoint([lat, lng], `Выбранная конечная точка: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        }
+    });
+    
+    // Создаем маркер центра города
+    let cityMarker = null;
+    if (cityFound && hasCity) {
         const cityCenterIcon = DG.divIcon({
             html: `
                 <div style="
@@ -159,21 +243,15 @@ DG.then(function () {
                     <small>Координаты: ${cityLat.toFixed(6)}, ${cityLon.toFixed(6)}</small>
                 </div>
             `);
-        
-        setTimeout(() => {
-            if (cityMarker) cityMarker.openPopup();
-        }, 500);
     }
     
-    const markers = [];
-    
+    // Добавляем найденные места
     places.forEach((place, index) => {
         try {
             const lat = parseFloat(place.lat);
             const lon = parseFloat(place.lon);
             
             if (isNaN(lat) || isNaN(lon)) {
-                console.warn("Пропускаем место с некорректными координатами:", place);
                 return;
             }
             
@@ -187,91 +265,333 @@ DG.then(function () {
             }
             
             popupContent += `<br><small style="color: #888; font-size: 11px;">Координаты: ${lat.toFixed(6)}, ${lon.toFixed(6)}</small>`;
+            popupContent += `<br><button onclick="selectAsPoint([${lat}, ${lon}], '${place.name.replace(/'/g, "\\'")}')" style="margin-top: 5px; padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Выбрать точкой</button>`;
             popupContent += `</div>`;
             
             const marker = DG.marker(point)
                 .addTo(map)
                 .bindPopup(popupContent);
             
-            markers.push(marker);
+            placesMarkers.push(marker);
             
         } catch(e) {
-            console.error("Ошибка создания маркера:", e, place);
+            console.error("Ошибка создания маркера:", e);
         }
     });
     
-    console.log("Создано маркеров мест:", markers.length);
+    console.log("Создано маркеров мест:", placesMarkers.length);
     
-    // Центрируем карту в зависимости от результатов
-    if (markers.length === 0 && cityFound) {
-        // Нет мест, но город найден - оставляем центр города
-        console.log("Нет мест, центрируем по городу");
-        map.setView(mapCenter, mapZoom);
-    } 
-    else if (markers.length === 1) {
-        // Один маркер - приближаем к нему
-        console.log("Одно место, приближаем");
-        map.setView(markers[0].getLatLng(), 15);
-    } 
-    else if (markers.length > 1) {
-        // Несколько маркеров - подгоняем границы
-        console.log("Несколько мест, подгоняем границы");
-        try {
-            const markerPoints = markers.map(m => m.getLatLng());
-            const bounds = DG.latLngBounds(markerPoints);
-            
-            // Добавляем центр города в границы, если он не входит
-            if (cityMarker) {
-                bounds.extend(cityMarker.getLatLng());
+    // Обновляем счетчик мест
+    document.getElementById('places-count').textContent = places.length;
+});
+
+// Функция для переключения типа конечной точки
+function toggleEndPoint() {
+    const endType = document.getElementById('end-type').value;
+    document.getElementById('specific-point-container').style.display = endType === 'specific' ? 'block' : 'none';
+    document.getElementById('category-point-container').style.display = endType === 'category' ? 'block' : 'none';
+    
+    // Если выбран тип "вернуться в начало", убираем конечный маркер
+    if (endType === 'start' && endMarker) {
+        map.removeLayer(endMarker);
+        endMarker = null;
+    }
+}
+
+// Функция для использования текущего местоположения
+function useCurrentLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                setStartPoint([lat, lng], "Ваше текущее местоположение");
+                map.setView([lat, lng], 15);
+            },
+            function(error) {
+                alert("Не удалось получить ваше местоположение. Проверьте настройки браузера.");
+                console.error("Geolocation error:", error);
             }
-            
-            map.fitBounds(bounds, {
-                padding: [50, 50],
-                maxZoom: 14
-            });
-        } catch(e) {
-            console.error("Ошибка fitBounds:", e);
-            // Если ошибка, центрируем по городу
-            map.setView(mapCenter, mapZoom);
-        }
+        );
+    } else {
+        alert("Геолокация не поддерживается вашим браузером.");
+    }
+}
+
+// Установка начальной точки
+function setStartPoint(coords, title) {
+    if (startMarker) {
+        map.removeLayer(startMarker);
     }
     
-    // Добавляем кнопку для возврата к центру города
-    const resetButton = DG.control({position: 'topright'});
-    resetButton.onAdd = function(map) {
-        const div = DG.DomUtil.create('div', 'reset-control');
-        div.innerHTML = `
-            <button class="control-button" title="Вернуться к центру города">
-                Центр
-            </button>
-        `;
-        
-        DG.DomEvent.on(div, 'click', function() {
-            if (cityFound) {
-                map.setView(mapCenter, mapZoom);
-                // Открываем попап центра города если он есть
-                if (cityMarker) {
-                    setTimeout(() => cityMarker.openPopup(), 300);
-                }
-            }
+    startMarker = DG.marker(coords, {
+        icon: DG.divIcon({
+            html: '<div style="background-color: #4CAF50; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        })
+    }).addTo(map).bindPopup(`<b>${title}</b><br>Координаты: ${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`);
+    
+    document.getElementById('start-point').value = `${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`;
+    startMarker.openPopup();
+}
+
+// Установка конечной точки
+function setEndPoint(coords, title) {
+    if (endMarker) {
+        map.removeLayer(endMarker);
+    }
+    
+    endMarker = DG.marker(coords, {
+        icon: DG.divIcon({
+            html: '<div style="background-color: #FF5722; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        })
+    }).addTo(map).bindPopup(`<b>${title}</b><br>Координаты: ${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`);
+    
+    if (document.getElementById('end-type').value === 'specific') {
+        document.getElementById('end-point-specific').value = `${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`;
+    }
+    endMarker.openPopup();
+}
+
+// Выбор точки из найденных мест
+function selectAsPoint(coords, name) {
+    if (!startMarker) {
+        setStartPoint(coords, `Выбрано: ${name}`);
+    } else if (document.getElementById('end-type').value === 'specific' && !endMarker) {
+        setEndPoint(coords, `Конечная точка: ${name}`);
+    }
+}
+
+// Расчет радиуса в метрах на основе времени (пешком ~5 км/ч)
+function getRadiusFromTime(minutes) {
+    const hours = minutes / 60;
+    const walkingSpeed = 5; // км/ч
+    const radiusKm = (walkingSpeed * hours) / 2; // Делим на 2, так как нужно туда и обратно
+    return radiusKm * 1000; // Преобразуем в метры
+}
+
+
+// Планирование маршрута
+async function planRoute() {
+    // Проверяем, задана ли начальная точка
+    if (!startMarker) {
+        alert("Сначала укажите начальную точку маршрута!");
+        return;
+    }
+    
+    const startCoords = startMarker.getLatLng();
+    const endType = document.getElementById('end-type').value;
+    const walkingTime = parseInt(document.getElementById('walking-time').value);
+    
+    // Получаем выбранные категории для посещения
+    const visitCategories = [];
+    document.querySelectorAll('input[name="visit-category"]:checked').forEach(cb => {
+        visitCategories.push(cb.value);
+    });
+    
+    if (visitCategories.length === 0) {
+        alert("Выберите хотя бы одну категорию мест для посещения!");
+        return;
+    }
+    
+    // Рассчитываем радиус поиска
+    const radiusMeters = getRadiusFromTime(walkingTime);
+    
+    // Показываем радиус на карте
+    if (radiusCircle) {
+        map.removeLayer(radiusCircle);
+    }
+    
+    radiusCircle = DG.circle(startCoords, radiusMeters, {
+        color: '#3498db',
+        fillColor: '#3498db',
+        fillOpacity: 0.1,
+        weight: 2
+    }).addTo(map);
+    
+    // Собираем данные для отправки на сервер
+    const routeData = {
+        start_lat: startCoords.lat,
+        start_lon: startCoords.lng,
+        end_type: endType,
+        walking_time: walkingTime,
+        visit_categories: visitCategories,
+        radius: radiusMeters
+    };
+    
+    // Добавляем конечную точку если указана конкретная
+    if (endType === 'specific' && endMarker) {
+        const endCoords = endMarker.getLatLng();
+        routeData.end_lat = endCoords.lat;
+        routeData.end_lon = endCoords.lng;
+    } else if (endType === 'category') {
+        routeData.end_category = document.getElementById('end-category').value;
+    }
+    
+    // Отправляем запрос на сервер
+    try {
+        showLoading(true);
+        const response = await fetch('/api/plan-route/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(routeData)
         });
         
-        return div;
-    };
-    resetButton.addTo(map);
+        const data = await response.json();
+        showLoading(false);
+        
+        if (data.success) {
+            displayRoute(data.route);
+        } else {
+            alert("Ошибка при построении маршрута: " + (data.error || "Неизвестная ошибка"));
+        }
+    } catch (error) {
+        showLoading(false);
+        console.error("Ошибка:", error);
+        alert("Произошла ошибка при построении маршрута. Проверьте консоль для подробностей.");
+    }
+}
+
+
+// Отображение маршрута на карте
+function displayRoute(routeData) {
+    // Очищаем предыдущий маршрут
+    clearRoute();
     
-    // Обновляем счетчик найденных мест
-    document.getElementById('places-count').textContent = places.length;
+    currentRoute = routeData;
     
-    // Отладочная информация
-    console.log("Отладка - переданы координаты:", {
-        "city_lat_raw": '{{ city_lat }}',
-        "city_lon_raw": '{{ city_lon }}',
-        "parsed_lat": cityLat,
-        "parsed_lon": cityLon,
-        "display_lat": '{{ city_lat_display }}',
-        "display_lon": '{{ city_lon_display }}'
+    // Отображаем промежуточные точки
+    routeData.intermediate_points.forEach((point, index) => {
+        const marker = DG.marker([point.lat, point.lon], {
+            icon: DG.divIcon({
+                html: `<div style="
+                    background-color: #9b59b6;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 10px;
+                ">${index + 1}</div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            })
+        }).addTo(map).bindPopup(`
+            <div style="max-width: 200px; padding: 5px;">
+                <b>${point.name}</b><br>
+                <small>${point.category || 'Место'}</small><br>
+                <small>${point.address || ''}</small>
+            </div>
+        `);
+        routeMarkers.push(marker);
     });
+    
+    // Отображаем маршрут
+    const routeCoords = routeData.route_coordinates.map(coord => [coord.lat, coord.lon]);
+    routePolyline = DG.polyline(routeCoords, {
+        color: '#9b59b6',
+        weight: 5,
+        opacity: 0.8
+    }).addTo(map);
+    
+    // Показываем информацию о маршруте
+    document.getElementById('route-info').style.display = 'block';
+    const details = `
+        <p><strong>📍 Начало:</strong> ${routeData.start_point.address || 'Координаты: ' + routeData.start_point.lat.toFixed(6) + ', ' + routeData.start_point.lon.toFixed(6)}</p>
+        <p><strong>🎯 Конец:</strong> ${routeData.end_point.address || 'Координаты: ' + routeData.end_point.lat.toFixed(6) + ', ' + routeData.end_point.lon.toFixed(6)}</p>
+        <p><strong>📏 Общая длина:</strong> ${(routeData.total_distance / 1000).toFixed(2)} км</p>
+        <p><strong>⏱️ Примерное время:</strong> ${Math.round(routeData.total_duration / 60)} минут</p>
+        <p><strong>🏢 Точек посещения:</strong> ${routeData.intermediate_points.length}</p>
+        <p><strong>🗺️ Категории:</strong> ${routeData.categories.join(', ')}</p>
+    `;
+    document.getElementById('route-details').innerHTML = details;
+    
+    // Подгоняем карту под весь маршрут
+    const bounds = DG.latLngBounds(routeCoords);
+    if (startMarker) bounds.extend(startMarker.getLatLng());
+    if (endMarker) bounds.extend(endMarker.getLatLng());
+    map.fitBounds(bounds, { padding: [50, 50] });
+}
+
+function clearRoute() {
+
+    routeMarkers.forEach(m => map.removeLayer(m));
+    routeMarkers = [];
+
+    if (routePolyline) {
+        map.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+
+    if (radiusCircle) {
+        map.removeLayer(radiusCircle);
+        radiusCircle = null;
+    }
+
+    document.getElementById('route-info').style.display = 'none';
+    currentRoute = null;
+}
+
+
+// Показать/скрыть загрузку
+function showLoading(show) {
+    if (show) {
+        document.getElementById('route-info').style.display = 'block';
+        document.getElementById('route-details').innerHTML = '<div style="text-align: center; padding: 20px;"><div class="spinner"></div><p>Строим оптимальный маршрут...</p></div>';
+        // Добавить CSS для спиннера
+        if (!document.querySelector('style[data-spinner]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-spinner', 'true');
+            style.textContent = `
+                .spinner {
+                    border: 4px solid #f3f3f3;
+                    border-top: 4px solid #9b59b6;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 1s linear infinite;
+                    margin: 0 auto 15px;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+}
+
+// Получение CSRF токена
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', function() {
+    toggleEndPoint();
 });
 </script>
 

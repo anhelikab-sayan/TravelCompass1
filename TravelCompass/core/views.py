@@ -1,6 +1,12 @@
 import json
 from django.shortcuts import render
 from core.api.d2gis import search_places
+import json
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from core.api.d2gis import search_places, calculate_distance
+from core.api.route_planner import plan_optimal_route
 
 def search_view(request):
     query = request.GET.get("q", "").strip()
@@ -87,5 +93,63 @@ def search_view(request):
     
     return render(request, "core/search.html", context)
 
+def index(request):
+    return search_view(request)
+
+@csrf_exempt
+def plan_route_api(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Метод не поддерживается'})
+    
+    try:
+        data = json.loads(request.body)
+        
+        # Получаем данные из запроса
+        start_lat = float(data.get('start_lat'))
+        start_lon = float(data.get('start_lon'))
+        end_type = data.get('end_type', 'start')
+        walking_time = int(data.get('walking_time', 60))
+        visit_categories = data.get('visit_categories', [])
+        radius = float(data.get('radius', 5000))  # в метрах
+        
+        # Определяем конечную точку
+        end_lat = None
+        end_lon = None
+        end_category = None
+        
+        if end_type == 'specific':
+            end_lat = float(data.get('end_lat'))
+            end_lon = float(data.get('end_lon'))
+        elif end_type == 'category':
+            end_category = data.get('end_category')
+        
+        # Планируем маршрут
+        route_result = plan_optimal_route(
+            start_point=(start_lat, start_lon),
+            end_type=end_type,
+            end_point=(end_lat, end_lon) if end_lat and end_lon else None,
+            end_category=end_category,
+            walking_time=walking_time,
+            visit_categories=visit_categories,
+            radius=radius
+        )
+        
+        if route_result['success']:
+            return JsonResponse({
+                'success': True,
+                'route': route_result['route']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': route_result.get('error', 'Ошибка планирования маршрута')
+            })
+            
+    except Exception as e:
+        print(f"Ошибка в API маршрутизации: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 def index(request):
     return search_view(request)

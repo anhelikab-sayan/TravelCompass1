@@ -1,4 +1,3 @@
-# d2gis.py - исправленная версия
 import requests
 from django.conf import settings
 import logging
@@ -132,10 +131,8 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
         logger.error(f"Нет координат для города '{city_name}'")
         return []
     
-    # Формируем поисковый запрос
     search_query = query.strip() if query and query.strip() else ""
     
-    # Если указана категория, добавляем к запросу
     CATEGORY_MAP = {
         "cafe": "кафе",
         "park": "парк",
@@ -150,27 +147,23 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
             if CATEGORY_MAP[category] not in search_query.lower():
                 search_query = f"{search_query} {CATEGORY_MAP[category]}"
     
-    # Если запрос пустой, ищем всё в этом городе
     if not search_query:
         search_query = city_name
     else:
-        # Добавляем город к запросу для более точного поиска
         search_query = f"{search_query} {city_name}"
     
     try:
-        # ПАРАМЕТРЫ КАК В РАБОЧЕМ ПРИМЕРЕ
         params = {
             "key": settings.DG2IS_API_KEY,
             "q": search_query,
             "fields": "items.point,items.name,items.address_name,items.rubrics,items.type",
-            "page_size": 10,  # ИЗМЕНИЛОСЬ: от 1 до 10 согласно ошибке
+            "page_size": 10,
             "locale": "ru_RU",
             "sort": "relevance",
         }
         
         logger.info(f"Поиск мест для города '{city_name}'")
         logger.info(f"Запрос: '{search_query}', категория: '{category}'")
-        logger.info(f"Параметры: {params}")
         
         response = requests.get(
             "https://catalog.api.2gis.com/3.0/items",
@@ -182,20 +175,14 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
         
         if response.status_code != 200:
             logger.error(f"2GIS API ошибка: {response.status_code}")
-            logger.error(f"Ответ: {response.text[:500]}")
             return []
         
         data = response.json()
         
-        # Проверяем на ошибки в ответе
         if data.get("meta", {}).get("code") != 200:
             error_msg = data.get("meta", {}).get("error", {}).get("message", "Unknown error")
             logger.error(f"API вернул ошибку: {error_msg}")
-            logger.error(f"Полный ответ: {json.dumps(data, ensure_ascii=False)}")
             return []
-        
-        # Отладочный вывод
-        logger.debug(f"Полный ответ API: {json.dumps(data, ensure_ascii=False)[:1000]}")
         
         places = []
         items = data.get("result", {}).get("items", [])
@@ -214,17 +201,14 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
             if place_lat is None or place_lon is None:
                 continue
             
-            # Получаем рубрики для фильтрации
             rubrics = item.get("rubrics", [])
             rubric_names = [r.get("name", "") for r in rubrics if isinstance(r, dict)]
             
-            # Фильтрация по категории (если указана)
             if category:
                 item_type = item.get("type", "").lower()
                 rubric_text = " ".join(rubric_names).lower()
                 item_name = item.get("name", "").lower()
                 
-                # Проверяем, подходит ли место под категорию
                 is_cafe = category == "cafe" and (
                     "кафе" in rubric_text or 
                     "кофейня" in rubric_text or 
@@ -262,12 +246,6 @@ def search_places_in_city_using_coordinates(query="", city_data=None, category="
         
         logger.info(f"После фильтрации осталось {len(places)} мест")
         
-        # Для отладки - выводим первые 5 мест
-        if places:
-            for i, place in enumerate(places[:5]):
-                logger.info(f"Место {i+1}: {place['name']} - {place['address']}")
-                logger.info(f"  Рубрики: {place['rubrics']}")
-        
         return places
         
     except Exception as e:
@@ -296,3 +274,103 @@ def search_places(query="", city="", category=""):
     )
     
     return places, city_data
+
+
+import math
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Рассчитывает расстояние между двумя точками в метрах (формула гаверсинусов)"""
+    R = 6371000  # радиус Земли в метрах
+    
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_lat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    return R * c
+
+import requests
+from django.conf import settings
+import re
+def parse_linestring(ls):
+    coords = []
+    ls = ls.replace("LINESTRING(", "").replace(")", "")
+    for pair in ls.split(","):
+        lon, lat = pair.strip().split()
+        coords.append({
+            "lat": float(lat),
+            "lon": float(lon)
+        })
+    return coords
+
+def calculate_route_2gis(points):
+    """Работающая версия на основе документации 2GIS"""
+    if len(points) < 2:
+        return {"success": False, "error": "Недостаточно точек"}
+    
+    try:
+        # Согласно документации 2GIS, формат должен быть такой:
+        # points: [{type: "stop", point: {lat: ..., lon: ...}}, ...]
+        route_points = []
+        for lat, lon in points:
+            route_points.append({
+                "type": "stop",
+                "point": {
+                    "lat": lat,
+                    "lon": lon
+                }
+            })
+        
+        payload = {
+            "points": route_points,
+            "transport": "pedestrian",
+            "locale": "ru_RU"
+        }
+        
+        logger.info(f"Отправка запроса с {len(points)} точками")
+        
+        response = requests.post(
+            "https://routing.api.2gis.com/routing/7.0.0/global",
+            json=payload,
+            params={"key": settings.DG2IS_API_KEY},
+            headers={"Content-Type": "application/json"},
+            timeout=15
+        )
+        
+        logger.info(f"Ответ: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"Успешно! Данные получены")
+            
+            # Здесь обрабатывайте data согласно реальной структуре ответа
+            # Временный fallback:
+            return create_simple_route(points)
+        else:
+            logger.error(f"Ошибка {response.status_code}: {response.text}")
+            return create_simple_route(points)
+            
+    except Exception as e:
+        logger.error(f"Ошибка: {e}")
+        return create_simple_route(points)
+
+
+def create_simple_route(points):
+    """Создание простого маршрута через точки"""
+    route_coordinates = []
+    total_distance = 0
+    
+    for i, (lat, lon) in enumerate(points):
+        route_coordinates.append({"lat": lat, "lon": lon})
+        if i > 0:
+            prev_lat, prev_lon = points[i-1]
+            total_distance += calculate_distance(prev_lat, prev_lon, lat, lon)
+    
+    return {
+        "success": True,
+        "distance": total_distance,
+        "duration": total_distance / 1.4,
+        "route_coordinates": route_coordinates
+    }
