@@ -99,6 +99,8 @@ import logging
 logger = logging.getLogger(__name__)
 # views.py - исправляем функцию plan_route_api
 # views.py - добавляем больше логирования в plan_route_api
+# core/views.py - обновленная функция plan_route_api
+
 @csrf_exempt
 def plan_route_api(request):
     if request.method != 'POST':
@@ -120,6 +122,9 @@ def plan_route_api(request):
         visit_categories = data.get('visit_categories', [])
         radius = float(data.get('radius', 5000))
         city_name = data.get('city_name', '')
+        
+        # Получаем адреса, если есть
+        start_address = data.get('start_address', 'Начальная точка')
         
         logger.info(f"ОБРАБОТАННЫЕ ДАННЫЕ:")
         logger.info(f"  Начало: {start_lat}, {start_lon}")
@@ -143,6 +148,7 @@ def plan_route_api(request):
         end_lon = data.get('end_lon')
         end_point = (float(end_lat), float(end_lon)) if end_lat and end_lon else None
         end_category = data.get('end_category')
+        end_address = data.get('end_address', '')
         
         # ВАЖНО: Используем город из запроса, если он есть
         if not city_name and 'city' in data:
@@ -163,15 +169,149 @@ def plan_route_api(request):
         )
         
         logger.info(f"РЕЗУЛЬТАТ МАРШРУТА: success={result.get('success')}")
+        
+        # Сохраняем маршрут в БД, если пользователь авторизован
+        saved_route_id = None
         if result.get('success') and result.get('route'):
-            points_count = len(result['route'].get('intermediate_points', []))
-            logger.info(f"  Промежуточных точек: {points_count}")
-            if points_count > 0:
-                for i, point in enumerate(result['route']['intermediate_points'][:3]):
-                    logger.info(f"    Точка {i+1}: {point['name']} - {point['distance']:.0f}м")
+            route_data = result['route']
+            
+            # Формируем заголовок маршрута
+            route_title = f"Маршрут по {city_name or 'городу'} - {', '.join(visit_categories[:3])}"
+            if len(visit_categories) > 3:
+                route_title += f" и др."
+            
+            # Сохраняем в БД если пользователь авторизован
+            if request.user.is_authenticated:
+                try:
+                    from core.models import Route
+                    
+                    route = Route.objects.create(
+                        user=request.user,
+                        title=route_title,
+                        start_point_lat=start_lat,
+                        start_point_lon=start_lon,
+                        start_point_address=start_address,
+                        end_point_lat=route_data['end_point']['lat'],
+                        end_point_lon=route_data['end_point']['lon'],
+                        end_point_address=route_data['end_point'].get('address', route_data['end_point'].get('name', 'Конечная точка')),
+                        end_type=end_type,
+                        total_distance=route_data['total_distance'],
+                        total_duration=route_data['total_duration'],
+                        walking_time=walking_time,
+                        city_name=city_name,
+                        categories=visit_categories,
+                        route_data=route_data
+                    )
+                    saved_route_id = route.id
+                    logger.info(f"✅ Маршрут сохранен в БД с ID: {saved_route_id}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка при сохранении маршрута: {e}", exc_info=True)
+            else:
+                logger.info("👤 Пользователь не авторизован - маршрут не сохранен")
+        
+        # Добавляем информацию о сохранении в ответ
+        result['route_saved'] = saved_route_id is not None
+        result['route_id'] = saved_route_id
+        result['user_authenticated'] = request.user.is_authenticated
         
         return JsonResponse(result)
         
     except Exception as e:
         logger.error(f"Ошибка в API маршрута: {e}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)})
+    # core/views.py - добавьте новую функцию
+
+@csrf_exempt
+def save_route_api(request):
+    """API для ручного сохранения маршрута"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Метод не поддерживается'})
+    
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'success': False, 
+            'requires_login': True,
+            'error': 'Необходимо авторизоваться для сохранения маршрутов'
+        })
+    
+    try:
+        data = json.loads(request.body)
+        route_data = data.get('route_data')
+        city_name = data.get('city_name', '')
+        walking_time = int(data.get('walking_time', 60))
+        visit_categories = data.get('visit_categories', [])
+        
+        if not route_data:
+            return JsonResponse({'success': False, 'error': 'Нет данных маршрута'})
+        
+        from core.models import Route
+        
+        # Формируем заголовок маршрута
+        route_title = f"Маршрут по {city_name or 'городу'} - {', '.join(visit_categories[:3])}"
+        if len(visit_categories) > 3:
+            route_title += f" и др."
+        
+        route = Route.objects.create(
+            user=request.user,
+            title=route_title,
+            start_point_lat=route_data['start_point']['lat'],
+            start_point_lon=route_data['start_point']['lon'],
+            start_point_address=route_data['start_point'].get('address', 'Начальная точка'),
+            end_point_lat=route_data['end_point']['lat'],
+            end_point_lon=route_data['end_point']['lon'],
+            end_point_address=route_data['end_point'].get('address', route_data['end_point'].get('name', 'Конечная точка')),
+            end_type=request.POST.get('end_type', 'start'),
+            total_distance=route_data['total_distance'],
+            total_duration=route_data['total_duration'],
+            walking_time=walking_time,
+            city_name=city_name,
+            categories=visit_categories,
+            route_data=route_data
+        )
+        
+        logger.info(f"✅ Маршрут сохранен пользователем {request.user.username} с ID: {route.id}")
+        
+        return JsonResponse({
+            'success': True,
+            'route_id': route.id,
+            'message': 'Маршрут успешно сохранен'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при сохранении маршрута: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)})
+    # core/views.py - добавьте функцию для загрузки сохраненного маршрута
+
+# core/views.py - добавьте эту функцию
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def delete_route_api(request, route_id):
+    """Удаление сохраненного маршрута"""
+    if request.method != 'DELETE':
+        return JsonResponse({'success': False, 'error': 'Метод не поддерживается'})
+    
+    try:
+        from core.models import Route
+        route = Route.objects.get(id=route_id, user=request.user)
+        route.delete()
+        
+        logger.info(f"✅ Маршрут {route_id} удален пользователем {request.user.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Маршрут удален'
+        })
+    except Route.DoesNotExist:
+        return JsonResponse({
+            'success': False, 
+            'error': 'Маршрут не найден'
+        })
+    except Exception as e:
+        logger.error(f"❌ Ошибка при удалении маршрута: {e}")
+        return JsonResponse({
+            'success': False, 
+            'error': str(e)
+        })
+

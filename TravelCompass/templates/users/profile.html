@@ -6,17 +6,69 @@
 {% endblock %}
 
 {% block body %}
-<h2>Профиль</h2>
+<div class="profile-container">
+    <h2>👤 Профиль</h2>
+    
+    <div class="profile-info">
+        <p><strong>Пользователь:</strong> {{ request.user.username }}</p>
+        <p><strong>Email:</strong> {{ request.user.email }}</p>
+    </div>
 
-<p><strong>Пользователь:</strong> {{ request.user.username }}</p>
-<p><strong>Email:</strong> {{ request.user.email }}</p>
+    <h3>🗺️ Мои маршруты ({{ routes|length }})</h3>
+    
+    {% if routes %}
+    <ul>
+        {% for route in routes %}
+        <li>
+            <div class="route-info">
+                <strong>{{ route.title|default:"Маршрут" }}</strong><br>
+                <small>
+                    📍 {{ route.formatted_distance }} · 
+                    🏙️ {{ route.city_name|default:"Город" }} · 
+                    📅 {{ route.created_at|date:"d.m.Y" }}
+                </small>
+            </div>
+            <div class="route-actions">
+                <button onclick="deleteRoute({{ route.id }})" class="btn-delete">🗑️</button>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">
+        <p>У вас пока нет сохраненных маршрутов</p>
+    </div>
+    {% endif %}
+</div>
 
-<h3>Мои маршруты</h3>
-<ul>
-  {% for route in routes %}
-    <li>{{ route.title }}</li>
-  {% empty %}
-    <li>Маршрутов пока нет</li>
-  {% endfor %}
-</ul>
+<script>
+function deleteRoute(routeId) {
+    if (!confirm('Удалить маршрут?')) return;
+    
+    fetch(`/api/delete-route/${routeId}/`, {
+        method: 'DELETE',
+        headers: {'X-CSRFToken': getCookie('csrftoken')}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Ошибка при удалении');
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
 {% endblock %}

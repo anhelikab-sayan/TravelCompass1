@@ -94,8 +94,9 @@
 
         <div class="route-buttons full">
             <button type="button" onclick="planRoute()" class="btn-primary">🗺️ Построить маршрут</button>
+            <button type="button" onclick="saveCurrentRoute()" class="btn-success">💾 Сохранить маршрут</button>
             <button type="button" onclick="clearRoute()" class="btn-danger">❌ Очистить</button>
-        </div>
+        </div> 
     </form>
 </div>
 
@@ -124,6 +125,34 @@
 </div>
 
 <script>
+
+// Загрузка сохраненного маршрута при наличии route_id в URL
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const routeId = urlParams.get('route_id');
+    
+    if (routeId) {
+        loadSavedRoute(routeId);
+    }
+});
+
+async function loadSavedRoute(routeId) {
+    try {
+        const response = await fetch(`/api/load-route/${routeId}/`);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayRoute(data.route);
+            showNotification('✅ Маршрут загружен', 'success');
+        } else {
+            showNotification('❌ Не удалось загрузить маршрут', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading route:', error);
+        showNotification('❌ Ошибка при загрузке маршрута', 'error');
+    }
+}
+
 let map = null;
 let startMarker = null;
 let endMarker = null;
@@ -639,6 +668,104 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+// Добавьте эту функцию для сохранения маршрута вручную
+async function saveCurrentRoute() {
+    if (!currentRoute) {
+        alert("Сначала постройте маршрут!");
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/save-route/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                route_data: currentRoute,
+                city_name: document.querySelector('input[name="city"]')?.value || '',
+                walking_time: parseInt(document.getElementById('walking-time').value),
+                visit_categories: Array.from(document.querySelectorAll('input[name="visit-category"]:checked')).map(cb => cb.value)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Маршрут успешно сохранен!', 'success');
+        } else {
+            if (data.requires_login) {
+                showNotification('🔐 Войдите в аккаунт, чтобы сохранять маршруты', 'info');
+                // Показываем окно с предложением войти/зарегистрироваться
+                setTimeout(() => {
+                    if (confirm('Войдите в аккаунт, чтобы сохранять маршруты. Перейти на страницу входа?')) {
+                        window.location.href = '/login/';
+                    }
+                }, 500);
+            } else {
+                showNotification('❌ Ошибка при сохранении: ' + (data.error || 'Неизвестная ошибка'), 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка при сохранении маршрута:', error);
+        showNotification('❌ Ошибка при сохранении маршрута', 'error');
+    }
+}
+
+// Функция для показа уведомлений
+function showNotification(message, type = 'info') {
+    // Удаляем старое уведомление, если есть
+    const oldNotification = document.querySelector('.route-notification');
+    if (oldNotification) oldNotification.remove();
+    
+    const notification = document.createElement('div');
+    notification.className = `route-notification ${type}`;
+    notification.innerHTML = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    
+    if (type === 'success') notification.style.backgroundColor = '#4CAF50';
+    else if (type === 'error') notification.style.backgroundColor = '#f44336';
+    else if (type === 'info') notification.style.backgroundColor = '#5fa8d3';
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 5000);
+}
+
+// Добавляем CSS для уведомлений
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+    .route-notification {
+        transition: all 0.3s ease;
+    }
+`;
+document.head.appendChild(style);
+
+
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', function() {
