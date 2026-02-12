@@ -8,12 +8,11 @@ from core.api.d2gis import calculate_route_2gis
 
 logger = logging.getLogger(__name__)
 
-# Скорость пешехода в м/с (примерно 5 км/ч)
 WALKING_SPEED = 1.4
 
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Рассчитывает расстояние между двумя точками в метрах (формула гаверсинусов)"""
-    R = 6371000  # радиус Земли в метрах
+    R = 6371000
     
     lat1_rad = math.radians(lat1)
     lat2_rad = math.radians(lat2)
@@ -24,9 +23,6 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     
     return R * c
-
-# core/api/route_planner.py - исправляем функцию find_places_in_radius
-# core/api/route_planner.py - замените функцию find_places_in_radius на эту:
 
 def find_places_in_radius(center_lat: float, center_lon: float, radius: float, 
                          categories: List[str], city_name: str = None) -> List[Dict]:
@@ -53,8 +49,7 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
         }
         
         all_places = []
-        
-        # 1. СНАЧАЛА ПЫТАЕМСЯ НАЙТИ КООРДИНАТЫ ГОРОДА
+
         city_coords = None
         if city_name:
             try:
@@ -79,7 +74,6 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
             except Exception as e:
                 logger.error(f"Ошибка геокодирования города: {e}")
         
-        # 2. ИЩЕМ МЕСТА ДЛЯ КАЖДОЙ КАТЕГОРИИ
         for category in categories:
             if category in category_map:
                 search_term = category_map[category]
@@ -87,7 +81,6 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
                 
                 found = False
                 
-                # Стратегия 1: Поиск по городу (всегда работает!)
                 if city_name and not found:
                     try:
                         params = {
@@ -139,7 +132,6 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
                     except Exception as e:
                         logger.error(f"Ошибка в стратегии 1: {e}")
                 
-                # Стратегия 2: Поиск по координатам города
                 if city_coords and not found:
                     try:
                         params = {
@@ -194,7 +186,6 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
                     except Exception as e:
                         logger.error(f"Ошибка в стратегии 2: {e}")
         
-        # 3. УБИРАЕМ ДУБЛИКАТЫ И СОРТИРУЕМ
         unique_places = {}
         for place in all_places:
             coord_key = f"{place['lat']:.6f},{place['lon']:.6f}"
@@ -207,7 +198,6 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
         logger.info("\n" + "=" * 60)
         logger.info(f"ИТОГО: Найдено {len(unique_places_list)} уникальных мест")
         
-        # 4. ЕСЛИ НИЧЕГО НЕ НАШЛИ - ИСПОЛЬЗУЕМ ТЕСТОВЫЕ ДАННЫЕ
         if not unique_places_list:
             logger.warning("⚠️ API НЕ ВЕРНУЛ ДАННЫХ! ИСПОЛЬЗУЕМ ТЕСТОВЫЕ МЕСТА")
             return get_test_places(center_lat, center_lon, categories)
@@ -274,7 +264,7 @@ def plan_optimal_route(start_point: Tuple[float, float],
         # 2. Находим интересные места для посещения
         intermediate_places = []
         if visit_categories:
-    # УБИРАЕМ ТЕСТОВЫЕ ДАННЫЕ, ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ API
+
             logger.info("🔵🔵🔵 ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ API 2GIS 🔵🔵🔵")
             intermediate_places = find_places_in_radius(
                 start_lat, start_lon, radius,
@@ -284,20 +274,20 @@ def plan_optimal_route(start_point: Tuple[float, float],
             logger.info(f"✅ Найдено РЕАЛЬНЫХ мест: {len(intermediate_places)}")
             for i, place in enumerate(intermediate_places[:5]):
                 logger.info(f"  РЕАЛЬНОЕ {i+1}: {place['name']} - {place['distance']:.0f}м")
+        
         # 3. Ограничение точек по времени (1 точка на каждые 30 минут)
         points_limit = max(1, walking_time // 30)
         logger.info(f"Берём {points_limit} точек для маршрута")
         intermediate_places = intermediate_places[:points_limit]
         
         # 4. Оптимизируем порядок посещения
-        optimized_points = []  # СОЗДАЕМ НОВЫЙ СПИСОК
+        optimized_points = [] 
         if intermediate_places:
             current_lat, current_lon = start_lat, start_lon
             remaining_places = intermediate_places.copy()
     
             logger.info(f"Начинаем оптимизацию {len(remaining_places)} точек")
     
-            # Жадный алгоритм ближайшего соседа
             while remaining_places:
                 nearest_idx = 0
                 nearest_dist = float('inf')

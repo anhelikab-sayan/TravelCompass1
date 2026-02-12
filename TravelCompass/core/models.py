@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
-
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils import timezone
 
 class Place(models.Model):
     name = models.CharField(max_length=255)
@@ -17,16 +19,10 @@ class Place(models.Model):
     def __str__(self):
         return self.name
 
-# core/models.py
-from django.db import models
-from django.contrib.auth.models import User
-from django.utils import timezone
-
 class Route(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     title = models.CharField(max_length=200, blank=True, default='')
     
-    # ВАЖНО: У всех полей должны быть default значения!
     start_point_lat = models.FloatField(default=0.0)
     start_point_lon = models.FloatField(default=0.0)
     start_point_address = models.CharField(max_length=500, blank=True, default='')
@@ -37,7 +33,7 @@ class Route(models.Model):
     
     end_type = models.CharField(max_length=50, default='start')
     total_distance = models.FloatField(default=0.0)
-    total_duration = models.FloatField(default=0.0)  # Вот здесь важно!
+    total_duration = models.FloatField(default=0.0)
     walking_time = models.IntegerField(default=60)
     city_name = models.CharField(max_length=100, blank=True, default='')
     

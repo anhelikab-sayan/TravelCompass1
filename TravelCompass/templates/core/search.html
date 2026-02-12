@@ -126,7 +126,6 @@
 
 <script>
 
-// Загрузка сохраненного маршрута при наличии route_id в URL
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const routeId = urlParams.get('route_id');
@@ -187,7 +186,6 @@ function clearMapBeforeRoute() {
         radiusCircle = null;
     }
 }
-
 
 DG.then(function () {
     let places = [];
@@ -409,7 +407,6 @@ function getRadiusFromTime(minutes) {
     return radiusKm * 1000; // Преобразуем в метры
 }
 
-// search.html - исправляем функцию planRoute
 async function planRoute() {
     // Проверяем, задана ли начальная точка
     if (!startMarker) {
@@ -454,8 +451,6 @@ async function planRoute() {
         console.log("✅ ИСПОЛЬЗУЕМ ГОРОД ПО УМОЛЧАНИЮ:", cityName);
     }
     
-    // Рассчитываем радиус поиска - УМЕНЬШАЕМ для пешего маршрута
-    // Для 30 минут - 1 км, для 60 минут - 2 км и т.д.
     const radiusMeters = Math.min(5000, (walkingTime * 1000) / 30); // Максимум 5 км
     console.log("✅ РАДИУС ПОИСКА:", Math.round(radiusMeters), "м");
     
@@ -479,7 +474,7 @@ async function planRoute() {
         walking_time: walkingTime,
         visit_categories: visitCategories,
         radius: Math.round(radiusMeters),
-        city_name: cityName  // ОБЯЗАТЕЛЬНО передаем город!
+        city_name: cityName 
     };
     
     // Добавляем конечную точку если указана конкретная
@@ -530,7 +525,6 @@ async function planRoute() {
     }
 }
 
-// Добавьте в displayRoute функцию для отладки
 function displayRoute(routeData) {
     // Очищаем предыдущий маршрут
     clearRoute();
@@ -623,36 +617,6 @@ function clearRoute() {
     currentRoute = null;
 }
 
-
-// Показать/скрыть загрузку
-function showLoading(show) {
-    if (show) {
-        document.getElementById('route-info').style.display = 'block';
-        document.getElementById('route-details').innerHTML = '<div style="text-align: center; padding: 20px;"><div class="spinner"></div><p>Строим оптимальный маршрут...</p></div>';
-        // Добавить CSS для спиннера
-        if (!document.querySelector('style[data-spinner]')) {
-            const style = document.createElement('style');
-            style.setAttribute('data-spinner', 'true');
-            style.textContent = `
-                .spinner {
-                    border: 4px solid #f3f3f3;
-                    border-top: 4px solid #9b59b6;
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 1s linear infinite;
-                    margin: 0 auto 15px;
-                }
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    }
-}
-
 // Получение CSRF токена
 function getCookie(name) {
     let cookieValue = null;
@@ -669,7 +633,6 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// Добавьте эту функцию для сохранения маршрута вручную
 async function saveCurrentRoute() {
     if (!currentRoute) {
         alert("Сначала постройте маршрут!");
@@ -764,8 +727,6 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
-
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', function() {

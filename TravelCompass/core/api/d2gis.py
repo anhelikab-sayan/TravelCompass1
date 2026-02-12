@@ -2,6 +2,11 @@ import requests
 from django.conf import settings
 import logging
 import json
+import math
+import requests
+import json
+import logging
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -274,11 +279,6 @@ def search_places(query="", city="", category=""):
     )
     
     return places, city_data
-import math
-import requests
-import json
-import logging
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +308,7 @@ def parse_linestring(ls):
     return coords
 
 def calculate_route_osrm(points):
-    """Используем бесплатный OSRM для построения пеших маршрутов по дорогам"""
+    """Используем OSRM для построения пеших маршрутов по дорогам"""
     if len(points) < 2:
         return {"success": False, "error": "Недостаточно точек"}
     
@@ -445,6 +445,6 @@ def create_simple_route(points):
     return {
         "success": True,
         "distance": total_distance,
-        "duration": total_distance / 1.4,  # Пешком ~5 км/ч
+        "duration": total_distance / 1.4,
         "route_coordinates": route_coordinates
     }

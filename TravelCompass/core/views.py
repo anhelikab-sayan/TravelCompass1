@@ -97,9 +97,6 @@ def index(request):
     return search_view(request)
 import logging
 logger = logging.getLogger(__name__)
-# views.py - исправляем функцию plan_route_api
-# views.py - добавляем больше логирования в plan_route_api
-# core/views.py - обновленная функция plan_route_api
 
 @csrf_exempt
 def plan_route_api(request):
@@ -220,7 +217,6 @@ def plan_route_api(request):
     except Exception as e:
         logger.error(f"Ошибка в API маршрута: {e}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)})
-    # core/views.py - добавьте новую функцию
 
 @csrf_exempt
 def save_route_api(request):
@@ -281,9 +277,7 @@ def save_route_api(request):
     except Exception as e:
         logger.error(f"❌ Ошибка при сохранении маршрута: {e}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)})
-    # core/views.py - добавьте функцию для загрузки сохраненного маршрута
 
-# core/views.py - добавьте эту функцию
 from django.contrib.auth.decorators import login_required
 
 @login_required
