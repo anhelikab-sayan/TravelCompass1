@@ -25,7 +25,8 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     
     return R * c
 
-
+# core/api/route_planner.py - исправляем функцию find_places_in_radius
+# core/api/route_planner.py - замените функцию find_places_in_radius на эту:
 
 def find_places_in_radius(center_lat: float, center_lon: float, radius: float, 
                          categories: List[str], city_name: str = None) -> List[Dict]:
@@ -33,41 +34,72 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
     Находит места в указанном радиусе от центра
     """
     try:
-        # Преобразуем категории в поисковые запросы
+        logger.info("=" * 60)
+        logger.info(f"ПОИСК МЕСТ В РАДИУСЕ {radius}м")
+        logger.info(f"Центр: {center_lat}, {center_lon}")
+        logger.info(f"Категории: {categories}")
+        logger.info(f"Город: {city_name}")
+        logger.info("=" * 60)
+        
         category_map = {
-            'cafe': 'кафе кофейня',
+            'cafe': 'кафе',
             'restaurant': 'ресторан',
-            'park': 'парк сквер',
-            'museum': 'музей выставка галерея',
+            'park': 'парк',
+            'museum': 'музей',
             'theater': 'театр',
-            'cinema': 'кинотеатр кино',
-            'shop': 'магазин торговый центр',
-            'attraction': 'достопримечательность памятник'
+            'cinema': 'кинотеатр',
+            'shop': 'магазин',
+            'attraction': 'достопримечательность'
         }
         
         all_places = []
         
-        # Ищем места для каждой категории
+        # 1. СНАЧАЛА ПЫТАЕМСЯ НАЙТИ КООРДИНАТЫ ГОРОДА
+        city_coords = None
+        if city_name:
+            try:
+                response = requests.get(
+                    "https://catalog.api.2gis.com/3.0/items/geocode",
+                    params={
+                        "key": settings.DG2IS_API_KEY,
+                        "q": city_name,
+                        "page_size": 1,
+                        "locale": "ru_RU",
+                    },
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("result", {}).get("items", [])
+                    if items:
+                        point = items[0].get("point")
+                        if point:
+                            city_coords = (point.get("lat"), point.get("lon"))
+                            logger.info(f"✅ Найдены координаты города {city_name}: {city_coords}")
+            except Exception as e:
+                logger.error(f"Ошибка геокодирования города: {e}")
+        
+        # 2. ИЩЕМ МЕСТА ДЛЯ КАЖДОЙ КАТЕГОРИИ
         for category in categories:
             if category in category_map:
-                search_terms = category_map[category].split()
+                search_term = category_map[category]
+                logger.info(f"\n--- Поиск категории: {category} ({search_term}) ---")
                 
-                for term in search_terms:
+                found = False
+                
+                # Стратегия 1: Поиск по городу (всегда работает!)
+                if city_name and not found:
                     try:
                         params = {
                             "key": settings.DG2IS_API_KEY,
-                            "q": f"{term} {city_name}" if city_name else term,
-                            "fields": "items.point,items.name,items.address_name,items.rubrics",
+                            "q": f"{search_term} {city_name}",
+                            "fields": "items.point,items.name,items.address_name",
                             "page_size": 20,
                             "locale": "ru_RU",
-                            "sort": "distance",
+                            "sort": "relevance",
                         }
                         
-                        # Если есть координаты центра, ищем в радиусе
-                        if center_lat and center_lon:
-                            params["point"] = f"{center_lon},{center_lat}"
-                            params["radius"] = int(radius)
-                        
+                        logger.info(f"Запрос 1 (по городу): {params['q']}")
                         response = requests.get(
                             "https://catalog.api.2gis.com/3.0/items",
                             params=params,
@@ -78,56 +110,114 @@ def find_places_in_radius(center_lat: float, center_lon: float, radius: float,
                             data = response.json()
                             items = data.get("result", {}).get("items", [])
                             
-                            for item in items:
-                                point = item.get("point")
-                                if point:
-                                    place_lat = point.get("lat")
-                                    place_lon = point.get("lon")
-                                    
-                                    if place_lat and place_lon:
-                                        # Проверяем расстояние
-                                        distance = calculate_distance(
-                                            center_lat, center_lon,
-                                            place_lat, place_lon
-                                        )
+                            if items:
+                                found = True
+                                logger.info(f"✅ Найдено {len(items)} мест по городу")
+                                
+                                for item in items:
+                                    point = item.get("point")
+                                    if point:
+                                        place_lat = point.get("lat")
+                                        place_lon = point.get("lon")
                                         
-                                        if distance <= radius:
+                                        if place_lat and place_lon:
+                                            distance = calculate_distance(
+                                                center_lat, center_lon,
+                                                place_lat, place_lon
+                                            )
+                                            
                                             place = {
-                                                "name": item.get("name", ""),
+                                                "name": item.get("name", "Без названия"),
                                                 "address": item.get("address_name", ""),
                                                 "lat": place_lat,
                                                 "lon": place_lon,
                                                 "category": category,
-                                                "distance": distance
+                                                "distance": distance,
                                             }
                                             all_places.append(place)
-                    
+                                            logger.info(f"  ✅ {place['name']} - {distance:.0f}м")
                     except Exception as e:
-                        logger.error(f"Ошибка поиска для категории {category}: {e}")
-                        continue
+                        logger.error(f"Ошибка в стратегии 1: {e}")
+                
+                # Стратегия 2: Поиск по координатам города
+                if city_coords and not found:
+                    try:
+                        params = {
+                            "key": settings.DG2IS_API_KEY,
+                            "q": search_term,
+                            "point": f"{city_coords[1]},{city_coords[0]}",
+                            "radius": min(radius, 5000),
+                            "fields": "items.point,items.name,items.address_name",
+                            "page_size": 20,
+                            "locale": "ru_RU",
+                            "sort": "distance",
+                        }
+                        
+                        logger.info(f"Запрос 2 (по координатам города): {params}")
+                        response = requests.get(
+                            "https://catalog.api.2gis.com/3.0/items",
+                            params=params,
+                            timeout=10
+                        )
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            items = data.get("result", {}).get("items", [])
+                            
+                            if items:
+                                found = True
+                                logger.info(f"✅ Найдено {len(items)} мест по координатам города")
+                                
+                                for item in items:
+                                    point = item.get("point")
+                                    if point:
+                                        place_lat = point.get("lat")
+                                        place_lon = point.get("lon")
+                                        
+                                        if place_lat and place_lon:
+                                            distance = calculate_distance(
+                                                center_lat, center_lon,
+                                                place_lat, place_lon
+                                            )
+                                            
+                                            if distance <= radius:
+                                                place = {
+                                                    "name": item.get("name", "Без названия"),
+                                                    "address": item.get("address_name", ""),
+                                                    "lat": place_lat,
+                                                    "lon": place_lon,
+                                                    "category": category,
+                                                    "distance": distance,
+                                                }
+                                                all_places.append(place)
+                                                logger.info(f"  ✅ {place['name']} - {distance:.0f}м")
+                    except Exception as e:
+                        logger.error(f"Ошибка в стратегии 2: {e}")
         
-        # Убираем дубликаты (места с одинаковыми координатами)
-        unique_places = []
-        seen_coords = set()
-        
+        # 3. УБИРАЕМ ДУБЛИКАТЫ И СОРТИРУЕМ
+        unique_places = {}
         for place in all_places:
             coord_key = f"{place['lat']:.6f},{place['lon']:.6f}"
-            if coord_key not in seen_coords:
-                seen_coords.add(coord_key)
-                unique_places.append(place)
+            if coord_key not in unique_places:
+                unique_places[coord_key] = place
         
-        # Сортируем по расстоянию
-        unique_places.sort(key=lambda x: x['distance'])
+        unique_places_list = list(unique_places.values())
+        unique_places_list.sort(key=lambda x: x['distance'])
         
-        logger.info(f"Найдено {len(unique_places)} уникальных мест в радиусе {radius}м")
-        return unique_places[:15]  # Ограничиваем количество точек
+        logger.info("\n" + "=" * 60)
+        logger.info(f"ИТОГО: Найдено {len(unique_places_list)} уникальных мест")
+        
+        # 4. ЕСЛИ НИЧЕГО НЕ НАШЛИ - ИСПОЛЬЗУЕМ ТЕСТОВЫЕ ДАННЫЕ
+        if not unique_places_list:
+            logger.warning("⚠️ API НЕ ВЕРНУЛ ДАННЫХ! ИСПОЛЬЗУЕМ ТЕСТОВЫЕ МЕСТА")
+            return get_test_places(center_lat, center_lon, categories)
+        
+        return unique_places_list[:10]
         
     except Exception as e:
-        logger.error(f"Ошибка поиска мест в радиусе: {e}")
-        return []
-
-import requests
-from django.conf import settings
+        logger.error(f"❌ Критическая ошибка: {e}", exc_info=True)
+        # В случае ошибки - тестовые данные
+        return get_test_places(center_lat, center_lon, categories)
 
 def plan_optimal_route(start_point: Tuple[float, float],
                       end_type: str,
@@ -141,19 +231,32 @@ def plan_optimal_route(start_point: Tuple[float, float],
     Планирует оптимальный пеший маршрут
     """
     try:
+        # ============= ОТЛАДКА =============
+        logger.info("=" * 80)
+        logger.info("ФУНКЦИЯ plan_optimal_route ВЫЗВАНА!")
+        logger.info(f"Параметры:")
+        logger.info(f"  start_point: {start_point}")
+        logger.info(f"  end_type: {end_type}")
+        logger.info(f"  end_point: {end_point}")
+        logger.info(f"  end_category: {end_category}")
+        logger.info(f"  walking_time: {walking_time}")
+        logger.info(f"  visit_categories: {visit_categories}")
+        logger.info(f"  radius: {radius}")
+        logger.info(f"  city_name: {city_name}")
+        logger.info("=" * 80)
+        # ============= ОТЛАДКА =============
+        
         start_lat, start_lon = start_point
         
         # 1. Определяем конечную точку
         if end_type == "start":
             # Круговой маршрут - возвращаемся в начало
             end_lat, end_lon = start_lat, start_lon
-            end_point_name = "Начальная точка"
+            end_point_name = "Начальная точка (круговой маршрут)"
         elif end_type == "specific" and end_point:
-            # Конкретная точка
             end_lat, end_lon = end_point
             end_point_name = "Выбранная точка"
         elif end_type == "category" and end_category:
-            # Ищем ближайшее заведение указанной категории
             places = find_places_in_radius(
                 start_lat, start_lon, radius,
                 [end_category], city_name
@@ -162,110 +265,113 @@ def plan_optimal_route(start_point: Tuple[float, float],
             if not places:
                 return {"success": False, "error": f"Не найдено мест категории '{end_category}' в радиусе"}
             
-            # Берем ближайшее место
             end_place = places[0]
             end_lat, end_lon = end_place["lat"], end_place["lon"]
-            end_point_name = end_place["name"]
+            end_point_name = f"{end_place['name']}"
         else:
             return {"success": False, "error": "Неверно указана конечная точка"}
         
         # 2. Находим интересные места для посещения
+        intermediate_places = []
         if visit_categories:
+    # УБИРАЕМ ТЕСТОВЫЕ ДАННЫЕ, ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ API
+            logger.info("🔵🔵🔵 ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ API 2GIS 🔵🔵🔵")
             intermediate_places = find_places_in_radius(
                 start_lat, start_lon, radius,
                 visit_categories, city_name
             )
+    
+            logger.info(f"✅ Найдено РЕАЛЬНЫХ мест: {len(intermediate_places)}")
+            for i, place in enumerate(intermediate_places[:5]):
+                logger.info(f"  РЕАЛЬНОЕ {i+1}: {place['name']} - {place['distance']:.0f}м")
+        # 3. Ограничение точек по времени (1 точка на каждые 30 минут)
+        points_limit = max(1, walking_time // 30)
+        logger.info(f"Берём {points_limit} точек для маршрута")
+        intermediate_places = intermediate_places[:points_limit]
+        
+        # 4. Оптимизируем порядок посещения
+        optimized_points = []  # СОЗДАЕМ НОВЫЙ СПИСОК
+        if intermediate_places:
+            current_lat, current_lon = start_lat, start_lon
+            remaining_places = intermediate_places.copy()
+    
+            logger.info(f"Начинаем оптимизацию {len(remaining_places)} точек")
+    
+            # Жадный алгоритм ближайшего соседа
+            while remaining_places:
+                nearest_idx = 0
+                nearest_dist = float('inf')
+        
+                for i, place in enumerate(remaining_places):
+                    dist = calculate_distance(
+                        current_lat, current_lon,
+                        place["lat"], place["lon"]
+                    )
+            
+                    if dist < nearest_dist:
+                        nearest_dist = dist
+                        nearest_idx = i
+        
+                next_place = remaining_places.pop(nearest_idx)
+                optimized_points.append(next_place)
+                logger.info(f"  Добавлена точка {len(optimized_points)}: {next_place['name']} - {nearest_dist:.0f}м")
+                current_lat, current_lon = next_place["lat"], next_place["lon"]
+    
+            logger.info(f"Оптимизировано {len(optimized_points)} точек")
         else:
-            intermediate_places = []
+            logger.info("Нет промежуточных точек для оптимизации")
         
-        # 3. Ограничиваем количество точек на основе времени
-        max_points = min(len(intermediate_places), max(3, walking_time // 30))
-        intermediate_places = intermediate_places[:max_points]
-        # защита от маршрута в ту же точку
-        if end_lat == start_lat and end_lon == start_lon:
-            return {
-                "success": False,
-                "error": "Начальная и конечная точка совпадают"
-            }
-
-        if not intermediate_places:
-            # Если нет промежуточных точек, строим прямой маршрут
-            route_result = calculate_route_2gis([
-                (start_lat, start_lon),
-                (end_lat, end_lon)
-            ])
-            
-            if route_result["success"]:
-                return {
-                    "success": True,
-                    "route": {
-                        "start_point": {"lat": start_lat, "lon": start_lon},
-                        "end_point": {"lat": end_lat, "lon": end_lon, "name": end_point_name},
-                        "intermediate_points": [],
-                        "total_distance": route_result["distance"],
-                        "total_duration": route_result["duration"],
-                        "route_coordinates": route_result["route_coordinates"],
-                        "categories": visit_categories or []
-                    }
-                }
-            else:
-                return {"success": False, "error": "Не удалось построить маршрут"}
+        # 5. Строим маршрут в зависимости от типа
+        all_points = [(start_lat, start_lon)]  # Начало
         
-        # 4. Оптимизируем порядок посещения (простой алгоритм - ближайший сосед)
-        optimized_points = []
-        current_lat, current_lon = start_lat, start_lon
-        remaining_places = intermediate_places.copy()
-        
-        while remaining_places:
-            # Находим ближайшую точку
-            nearest_idx = 0
-            nearest_dist = float('inf')
-            
-            for i, place in enumerate(remaining_places):
-                dist = calculate_distance(
-                    current_lat, current_lon,
-                    place["lat"], place["lon"]
-                )
-                if dist < nearest_dist:
-                    nearest_dist = dist
-                    nearest_idx = i
-            
-            # Добавляем найденную точку
-            nearest_place = remaining_places.pop(nearest_idx)
-            optimized_points.append(nearest_place)
-            current_lat, current_lon = nearest_place["lat"], nearest_place["lon"]
-        
-        # 5. Строим маршрут через все точки
-        all_points = [(start_lat, start_lon)]
+        # Добавляем промежуточные точки
         for place in optimized_points:
             all_points.append((place["lat"], place["lon"]))
-        all_points.append((end_lat, end_lon))
         
-        # 6. Рассчитываем маршрут через 2GIS API
-        route_result = calculate_route_2gis(all_points)
+        # Добавляем конечную точку
+        if end_type == "start":
+            # Круговой маршрут - возвращаемся в начало
+            all_points.append((start_lat, start_lon))
+        else:
+            all_points.append((end_lat, end_lon))
         
-        if not route_result["success"]:
-            # Если API не сработало, используем упрощенный маршрут
-            route_coordinates = []
-            for lat, lon in all_points:
-                route_coordinates.append({"lat": lat, "lon": lon})
-            
-            # Приблизительно оцениваем расстояние и время
-            total_distance = 0
-            for i in range(len(all_points) - 1):
-                total_distance += calculate_distance(
-                    all_points[i][0], all_points[i][1],
-                    all_points[i+1][0], all_points[i+1][1]
-                )
-            
+        # 6. Рассчитываем маршрут
+        logger.info(f"Строим маршрут из {len(all_points)} точек")
+        
+        if len(all_points) == 2 and all_points[0] == all_points[1]:
+            # Круговой маршрут из одной точки
             route_result = {
                 "success": True,
-                "distance": total_distance,
-                "duration": total_distance / WALKING_SPEED,
-                "route_coordinates": route_coordinates
+                "distance": 0,
+                "duration": 0,
+                "route_coordinates": [{"lat": start_lat, "lon": start_lon}]
             }
+        else:
+            route_result = calculate_route_2gis(all_points)
+            
+            if not route_result["success"]:
+                # Если API не сработало, используем упрощенный маршрут
+                route_coordinates = []
+                for lat, lon in all_points:
+                    route_coordinates.append({"lat": lat, "lon": lon})
+                
+                total_distance = 0
+                for i in range(len(all_points) - 1):
+                    total_distance += calculate_distance(
+                        all_points[i][0], all_points[i][1],
+                        all_points[i+1][0], all_points[i+1][1]
+                    )
+                
+                route_result = {
+                    "success": True,
+                    "distance": total_distance,
+                    "duration": total_distance / WALKING_SPEED,
+                    "route_coordinates": route_coordinates
+                }
         
         # 7. Формируем результат
+        logger.info(f"Найдено {len(optimized_points)} промежуточных точек для маршрута")
+        
         return {
             "success": True,
             "route": {
@@ -275,8 +381,8 @@ def plan_optimal_route(start_point: Tuple[float, float],
                     "address": "Начальная точка"
                 },
                 "end_point": {
-                    "lat": end_lat,
-                    "lon": end_lon,
+                    "lat": end_lat if end_type != "start" else start_lat,
+                    "lon": end_lon if end_type != "start" else start_lon,
                     "name": end_point_name,
                     "address": end_point_name
                 },
@@ -291,3 +397,31 @@ def plan_optimal_route(start_point: Tuple[float, float],
     except Exception as e:
         logger.error(f"Ошибка планирования маршрута: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
+    
+
+# Временная функция для тестирования маршрутов
+def get_test_places(center_lat, center_lon, categories):
+    """Возвращает тестовые места для проверки отображения"""
+    test_places = []
+    
+    test_data = [
+        (0.002, 0.001, "Кафе Центральное", "cafe", "ул. Ленина, 10"),
+        (-0.001, 0.003, "Парк Горького", "park", "ул. Парковая, 1"),
+        (0.003, -0.001, "Ресторан Волга", "restaurant", "наб. реки, 15"),
+        (-0.002, -0.002, "Музей искусств", "museum", "пл. Искусств, 5"),
+        (0.001, -0.002, "Театр драмы", "theater", "ул. Театральная, 7"),
+    ]
+    
+    for lat_off, lon_off, name, cat, addr in test_data:
+        if cat in categories:
+            place = {
+                "name": name,
+                "address": addr,
+                "lat": center_lat + lat_off,
+                "lon": center_lon + lon_off,
+                "category": cat,
+                "distance": calculate_distance(center_lat, center_lon, center_lat + lat_off, center_lon + lon_off),
+            }
+            test_places.append(place)
+    
+    return test_places

@@ -83,7 +83,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'TravelCompass',
         'USER': 'postgres',
-        'PASSWORD': 'Postgres',
+        'PASSWORD': 'postgres',
         'HOST': 'localhost',
         'PORT': '5432',
         'CONN_MAX_AGE': 600,

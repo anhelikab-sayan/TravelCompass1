@@ -95,7 +95,10 @@ def search_view(request):
 
 def index(request):
     return search_view(request)
-
+import logging
+logger = logging.getLogger(__name__)
+# views.py - исправляем функцию plan_route_api
+# views.py - добавляем больше логирования в plan_route_api
 @csrf_exempt
 def plan_route_api(request):
     if request.method != 'POST':
@@ -104,52 +107,71 @@ def plan_route_api(request):
     try:
         data = json.loads(request.body)
         
+        logger.info("=" * 60)
+        logger.info("ПОЛУЧЕН ЗАПРОС НА МАРШРУТ:")
+        logger.info(json.dumps(data, indent=2, ensure_ascii=False))
+        logger.info("=" * 60)
+        
         # Получаем данные из запроса
         start_lat = float(data.get('start_lat'))
         start_lon = float(data.get('start_lon'))
         end_type = data.get('end_type', 'start')
         walking_time = int(data.get('walking_time', 60))
         visit_categories = data.get('visit_categories', [])
-        radius = float(data.get('radius', 5000))  # в метрах
+        radius = float(data.get('radius', 5000))
+        city_name = data.get('city_name', '')
         
-        # Определяем конечную точку
-        end_lat = None
-        end_lon = None
-        end_category = None
+        logger.info(f"ОБРАБОТАННЫЕ ДАННЫЕ:")
+        logger.info(f"  Начало: {start_lat}, {start_lon}")
+        logger.info(f"  Тип конца: {end_type}")
+        logger.info(f"  Время: {walking_time} мин")
+        logger.info(f"  Категории: {visit_categories}")
+        logger.info(f"  Радиус: {radius} м")
+        logger.info(f"  Город: {city_name}")
         
-        if end_type == 'specific':
-            end_lat = float(data.get('end_lat'))
-            end_lon = float(data.get('end_lon'))
-        elif end_type == 'category':
-            end_category = data.get('end_category')
+        if not start_lat or not start_lon:
+            return JsonResponse({'success': False, 'error': 'Не указана начальная точка'})
         
-        # Планируем маршрут
-        route_result = plan_optimal_route(
-            start_point=(start_lat, start_lon),
+        if not visit_categories:
+            logger.warning("НЕТ ВЫБРАННЫХ КАТЕГОРИЙ!")
+            return JsonResponse({'success': False, 'error': 'Не выбраны категории для посещения'})
+        
+        start_point = (float(start_lat), float(start_lon))
+        
+        # Дополнительные параметры
+        end_lat = data.get('end_lat')
+        end_lon = data.get('end_lon')
+        end_point = (float(end_lat), float(end_lon)) if end_lat and end_lon else None
+        end_category = data.get('end_category')
+        
+        # ВАЖНО: Используем город из запроса, если он есть
+        if not city_name and 'city' in data:
+            city_name = data.get('city')
+        
+        logger.info(f"ГОРОД ДЛЯ ПОИСКА (финальный): '{city_name}'")
+        
+        # Вызываем функцию планирования маршрута
+        result = plan_optimal_route(
+            start_point=start_point,
             end_type=end_type,
-            end_point=(end_lat, end_lon) if end_lat and end_lon else None,
+            end_point=end_point,
             end_category=end_category,
             walking_time=walking_time,
             visit_categories=visit_categories,
-            radius=radius
+            radius=radius,
+            city_name=city_name
         )
         
-        if route_result['success']:
-            return JsonResponse({
-                'success': True,
-                'route': route_result['route']
-            })
-        else:
-            return JsonResponse({
-                'success': False,
-                'error': route_result.get('error', 'Ошибка планирования маршрута')
-            })
-            
+        logger.info(f"РЕЗУЛЬТАТ МАРШРУТА: success={result.get('success')}")
+        if result.get('success') and result.get('route'):
+            points_count = len(result['route'].get('intermediate_points', []))
+            logger.info(f"  Промежуточных точек: {points_count}")
+            if points_count > 0:
+                for i, point in enumerate(result['route']['intermediate_points'][:3]):
+                    logger.info(f"    Точка {i+1}: {point['name']} - {point['distance']:.0f}м")
+        
+        return JsonResponse(result)
+        
     except Exception as e:
-        print(f"Ошибка в API маршрутизации: {e}")
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
-def index(request):
-    return search_view(request)
+        logger.error(f"Ошибка в API маршрута: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)})
