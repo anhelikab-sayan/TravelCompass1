@@ -313,15 +313,15 @@ def calculate_route_osrm(points):
         return {"success": False, "error": "Недостаточно точек"}
     
     try:
-        # Формируем URL для OSRM (пеший маршрут)
+        # Формируем URL для OSRM (пеший маршрут) - ИСПРАВЛЕНО: walking вместо foot
         coords_str = ";".join([f"{lon},{lat}" for lat, lon in points])
         url = f"http://router.project-osrm.org/route/v1/walking/{coords_str}"
         
         params = {
-            "overview": "full",      # Полная геометрия маршрута
-            "geometries": "geojson", # Формат GeoJSON
-            "steps": "false",        # Не нужны детальные шаги
-            "alternatives": "false"  # Только один маршрут
+            "overview": "full",
+            "geometries": "geojson",
+            "steps": "false",
+            "alternatives": "false"
         }
         
         logger.info(f"Запрос к OSRM для {len(points)} точек: {coords_str[:100]}...")
@@ -334,7 +334,6 @@ def calculate_route_osrm(points):
             if data.get("code") == "Ok" and data.get("routes"):
                 route = data["routes"][0]
                 
-                # Конвертируем из формата GeoJSON [lon, lat] в наш формат {lat, lon}
                 route_coordinates = []
                 geometry = route["geometry"]["coordinates"]
                 
@@ -350,8 +349,8 @@ def calculate_route_osrm(points):
                 
                 return {
                     "success": True,
-                    "distance": route["distance"],      # в метрах
-                    "duration": route["duration"],      # в секундах
+                    "distance": route["distance"],
+                    "duration": route["duration"],
                     "route_coordinates": route_coordinates
                 }
         
@@ -367,7 +366,7 @@ def calculate_route_2gis(points):
     if len(points) < 2:
         return {"success": False, "error": "Недостаточно точек"}
     
-    # Сначала пробуем OSRM (бесплатный, работает по дорогам)
+    # Сначала пробуем OSRM
     logger.info(f"Пробуем построить пеший маршрут через OSRM для {len(points)} точек")
     osrm_result = calculate_route_osrm(points)
     
@@ -375,23 +374,24 @@ def calculate_route_2gis(points):
         logger.info("Успешно использован OSRM для построения маршрута по дорогам")
         return osrm_result
     
-    # Если OSRM не сработал, пробуем 2GIS (но скорее всего он тоже не сработает)
+    # Если OSRM не сработал, пробуем 2GIS - ИСПРАВЛЕНО
     logger.info("OSRM не сработал, пробуем 2GIS...")
     try:
-        # Упрощенный формат для 2GIS
+        # Формируем точки маршрута для параметра
         points_str = ";".join([f"{lon},{lat}" for lat, lon in points])
         
         params = {
             "key": settings.DG2IS_API_KEY,
             "points": points_str,
-            "type": "pedestrian",
-            "locale": "ru_RU"
+            "type": "pedestrian",  # пеший маршрут
+            "locale": "ru_RU",
+            "output": "geometry"
         }
         
-        logger.info(f"Запрос к 2GIS Routing API: {points_str[:100]}...")
+        logger.info(f"Запрос к 2GIS Routing API для {len(points)} точек")
         
         response = requests.get(
-            "https://routing.api.2gis.com/get_route",
+            "https://routing.api.2gis.com/routing/7.0.0/",
             params=params,
             timeout=15
         )
@@ -400,31 +400,26 @@ def calculate_route_2gis(points):
         
         if response.status_code == 200:
             data = response.json()
-            logger.info(f"2GIS API успешно")
             
-            # Обработка ответа 2GIS
-            route_coordinates = []
-            total_distance = 0
-            total_duration = 0
-            
-            if "result" in data and data["result"]:
+            if "result" in data and len(data["result"]) > 0:
                 route = data["result"][0]
+                
                 total_distance = route.get("total_distance", 0)
                 total_duration = route.get("total_duration", 0)
                 
-                # Парсим геометрию
+                route_coordinates = []
                 geometry = route.get("geometry")
                 if geometry:
                     route_coordinates = parse_linestring(geometry)
-            
-            if route_coordinates:
-                logger.info(f"2GIS построил маршрут: {len(route_coordinates)} точек")
-                return {
-                    "success": True,
-                    "distance": total_distance,
-                    "duration": total_duration,
-                    "route_coordinates": route_coordinates
-                }
+                
+                if route_coordinates:
+                    logger.info(f"2GIS построил маршрут: {len(route_coordinates)} точек, {total_distance:.0f}м")
+                    return {
+                        "success": True,
+                        "distance": total_distance,
+                        "duration": total_duration,
+                        "route_coordinates": route_coordinates
+                    }
         
         # Если 2GIS не сработал, возвращаем упрощенный маршрут
         logger.warning("Ни OSRM, ни 2GIS не сработали, используем упрощенный маршрут")
@@ -432,7 +427,6 @@ def calculate_route_2gis(points):
             
     except Exception as e:
         logger.error(f"Ошибка 2GIS Routing API: {e}")
-        # Возвращаем упрощенный маршрут
         return create_simple_route(points)
 
 def create_simple_route(points):
